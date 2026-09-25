@@ -1,0 +1,19 @@
+VOIDFORGE SERVER 0.6.1 — GITHUB FILES
+
+Upload/replace these in your GitHub repository:
+
+render.yaml
+server/server.py
+server/requirements.txt
+
+After committing, Render should redeploy automatically. If it does not:
+Render > voidforge-server > Manual Deploy > Deploy latest commit
+
+Then check:
+https://voidforge-server.onrender.com/health
+
+Expected version:
+pixel-online-0.6.1-crucible
+
+WebSocket URL used by the game:
+wss://voidforge-server.onrender.com/ws
