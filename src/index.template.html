@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#050a1c">
+<title>Voidforge Racing</title>
+<style>
+:root{--bg:rgba(7,11,26,.74);--bg2:rgba(255,255,255,.07);--ac:#00e5ff;--ac2:#ff3d71;--gold:#ffb703;--ok:#8ce99a;--ink:#eaf2ff;--mute:#8da2c8}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:#050a1c;color:var(--ink);font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;user-select:none;-webkit-user-select:none;touch-action:none}
+canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block;outline:none}
+[hidden]{display:none!important}
+b,strong{font-weight:800}
+
+/* ---------- HUD ---------- */
+#hud{position:fixed;inset:0;pointer-events:none;text-shadow:0 2px 0 rgba(0,0,0,.45)}
+.box{background:var(--bg);border:1px solid rgba(255,255,255,.12);border-radius:14px;backdrop-filter:blur(6px)}
+#posbox{position:absolute;top:calc(12px + env(safe-area-inset-top));left:calc(14px + env(safe-area-inset-left));padding:8px 16px 8px 14px;display:flex;align-items:baseline;gap:6px;font-style:italic}
+#posN{font-size:clamp(40px,7vw,64px);font-weight:900;line-height:1;color:var(--gold)}
+#posSuf{font-size:clamp(16px,2.4vw,22px);font-weight:800;color:var(--gold);margin-left:-2px}
+#posTot{font-size:clamp(15px,2.2vw,20px);color:var(--mute);font-weight:700}
+#lapbox{position:absolute;top:calc(12px + env(safe-area-inset-top));left:calc(150px + env(safe-area-inset-left));padding:8px 14px;font-weight:800;font-size:clamp(14px,2.2vw,20px);font-style:italic;letter-spacing:.06em;white-space:nowrap}
+#lapbox span{color:var(--mute)}
+#times{position:absolute;top:calc(12px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);padding:8px 16px;display:grid;grid-template-columns:auto auto;gap:2px 14px;font-size:clamp(12px,1.8vw,16px);font-variant-numeric:tabular-nums;min-width:200px}
+#times i{font-style:normal;color:var(--mute);letter-spacing:.1em;font-size:.82em;align-self:center}
+#times b{text-align:right}
+#tBest{color:var(--ok)}
+#miniwrap{position:absolute;top:calc(12px + env(safe-area-inset-top));right:calc(14px + env(safe-area-inset-right));padding:6px;width:clamp(110px,17vw,180px);height:clamp(110px,17vw,180px)}
+#mini{width:100%;height:100%;display:block}
+#speedo{position:absolute;bottom:calc(14px + env(safe-area-inset-bottom));right:calc(16px + env(safe-area-inset-right));padding:10px 18px 12px;text-align:right;min-width:190px}
+#kmh{font-size:clamp(46px,8vw,76px);font-weight:900;font-style:italic;line-height:.95;font-variant-numeric:tabular-nums}
+#speedo small{color:var(--mute);letter-spacing:.2em;font-size:12px;font-weight:700}
+#gear{position:absolute;left:14px;top:12px;font-size:28px;font-weight:900;color:var(--ac);font-style:italic}
+.bar{height:8px;border-radius:5px;background:rgba(255,255,255,.14);overflow:hidden;margin:7px 0 2px}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#4cc9f0,#ffd43b 70%,#ff4d6d)}
+#boostbar i{background:linear-gradient(90deg,#00b4ff,#00e5ff)}
+#boostbar.full{box-shadow:0 0 14px #00e5ff}
+#center{position:absolute;top:30%;left:0;right:0;text-align:center;font-size:clamp(46px,13vw,140px);font-weight:900;font-style:italic;letter-spacing:.03em;color:#fff;text-shadow:0 6px 0 #d62856,0 0 40px rgba(0,229,255,.55);opacity:0;transform:scale(1)}
+#center.pop{animation:pop .9s ease-out}
+#center.warn{color:#ffd43b;text-shadow:0 5px 0 #a03d00;font-size:clamp(30px,8vw,80px)}
+@keyframes pop{0%{opacity:0;transform:scale(1.8)}18%{opacity:1;transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:scale(.92)}}
+#toast{position:absolute;bottom:22%;left:50%;transform:translateX(-50%);padding:9px 20px;font-weight:800;font-size:clamp(14px,2.3vw,20px);opacity:0;transition:opacity .3s;white-space:nowrap}
+#toast.on{opacity:1}
+#hint{position:absolute;bottom:calc(14px + env(safe-area-inset-bottom));left:calc(14px + env(safe-area-inset-left));padding:8px 14px;font-size:13px;color:var(--mute);line-height:1.6;transition:opacity 1s}
+#hint kbd,.help kbd{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);border-bottom-width:2px;border-radius:5px;padding:0 6px;font:700 12px/18px "Trebuchet MS",sans-serif;color:var(--ink);margin:0 1px}
+#fxspeed{position:absolute;inset:0;opacity:0;background:radial-gradient(ellipse at center,rgba(0,229,255,0) 45%,rgba(0,229,255,.28) 100%);transition:opacity .15s}
+#fxdmg{position:absolute;inset:0;opacity:0;background:radial-gradient(ellipse at center,rgba(255,61,113,0) 50%,rgba(255,61,113,.35) 100%);transition:opacity .25s}
+
+/* ---------- screens ---------- */
+.screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;background:radial-gradient(ellipse at 30% 20%,rgba(5,10,28,.55),rgba(5,10,28,.9));touch-action:pan-y}
+#menu{background:linear-gradient(90deg,rgba(5,10,28,.92) 0%,rgba(5,10,28,.78) 42%,rgba(5,10,28,.15) 100%);justify-content:flex-start}
+.panel{width:min(620px,100%);margin:auto 0;padding:clamp(16px,3vw,30px)}
+#menu .panel{margin-left:clamp(0px,5vw,70px)}
+.logo{font-size:clamp(34px,7vw,64px);font-weight:900;font-style:italic;letter-spacing:.02em;line-height:1;text-shadow:0 4px 0 rgba(214,40,86,.9),0 0 40px rgba(0,229,255,.35)}
+.logo span{color:var(--ac)}
+.logo em{display:block;font-size:.34em;letter-spacing:.55em;color:var(--gold);font-style:italic;margin-top:6px;text-shadow:none}
+.sec{margin-top:18px}
+.sec h3{margin:0 0 8px;font-size:12px;letter-spacing:.25em;color:var(--mute);font-weight:800;text-transform:uppercase}
+.row{display:flex;gap:22px;flex-wrap:wrap}
+.cards{display:flex;gap:10px}
+.card{flex:1;min-width:0;background:var(--bg2);border:2px solid transparent;border-radius:14px;padding:8px;cursor:pointer;text-align:left;color:inherit;font:inherit;transition:transform .12s,border-color .12s,background .12s}
+.card:hover{transform:translateY(-2px);background:rgba(255,255,255,.11)}
+.card.on{border-color:var(--ac);background:rgba(0,229,255,.1);box-shadow:0 0 22px rgba(0,229,255,.18)}
+.card canvas{width:100%;aspect-ratio:3/2;display:block;border-radius:8px;background:rgba(0,0,0,.25)}
+.card b{display:block;margin-top:6px;font-size:14px;font-style:italic}
+.card small{display:block;color:var(--mute);font-size:11px;line-height:1.35;margin-top:2px}
+.card .rec{color:var(--ok);font-variant-numeric:tabular-nums}
+.seg{display:inline-flex;background:var(--bg2);border-radius:12px;padding:3px;gap:2px}
+.seg button{border:0;background:none;color:var(--mute);font:800 14px "Trebuchet MS",sans-serif;padding:8px 16px;border-radius:9px;cursor:pointer}
+.seg button.on{background:var(--ac);color:#021018}
+.swatches{display:flex;gap:10px;flex-wrap:wrap}
+.sw{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.25);cursor:pointer;padding:0;transition:transform .12s}
+.sw:hover{transform:scale(1.12)}
+.sw.on{border-color:#fff;box-shadow:0 0 0 3px rgba(0,229,255,.55)}
+button.big{margin-top:22px;width:100%;padding:16px;border:0;border-radius:14px;font:900 22px "Trebuchet MS",sans-serif;font-style:italic;letter-spacing:.12em;color:#04121a;background:linear-gradient(90deg,var(--ac),#6cf0ff);cursor:pointer;box-shadow:0 6px 0 #0a7d92,0 12px 30px rgba(0,229,255,.25);transition:transform .08s,box-shadow .08s}
+button.big:hover{transform:translateY(-1px)}
+button.big:active{transform:translateY(4px);box-shadow:0 2px 0 #0a7d92}
+button.big.alt{background:var(--bg2);color:var(--ink);box-shadow:0 6px 0 rgba(255,255,255,.12);margin-top:12px;font-size:17px;padding:12px}
+.help{margin-top:18px;color:var(--mute);font-size:13px;line-height:1.9}
+#pause .panel,#results .panel{width:min(520px,100%);background:var(--bg);border:1px solid rgba(255,255,255,.14);border-radius:20px;backdrop-filter:blur(8px);text-align:center}
+#pause h2,#results h2{margin:0 0 4px;font-size:clamp(28px,6vw,44px);font-style:italic;font-weight:900;color:var(--gold)}
+#results .sub{color:var(--mute);margin-bottom:12px}
+table.res{width:100%;border-collapse:collapse;margin:8px 0 4px;font-variant-numeric:tabular-nums;font-size:15px;text-align:left}
+table.res td,table.res th{padding:7px 8px;border-bottom:1px solid rgba(255,255,255,.08)}
+table.res th{color:var(--mute);font-size:11px;letter-spacing:.2em;font-weight:800}
+table.res tr.me td{background:rgba(0,229,255,.12);font-weight:800}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;vertical-align:middle}
+.newbest{color:var(--ok);font-weight:800}
+
+/* ---------- touch controls ---------- */
+#touch{position:fixed;inset:0;pointer-events:none}
+.tb{position:absolute;pointer-events:auto;display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.28);color:#fff;font:900 22px "Trebuchet MS",sans-serif;touch-action:none;backdrop-filter:blur(3px)}
+.tb.down{background:rgba(0,229,255,.38);border-color:var(--ac)}
+#tLeft,#tRight{bottom:calc(26px + env(safe-area-inset-bottom));width:clamp(74px,19vw,104px);height:clamp(74px,19vw,104px);border-radius:24px}
+#tLeft{left:calc(16px + env(safe-area-inset-left))}
+#tRight{left:calc(clamp(74px,19vw,104px) + 30px + env(safe-area-inset-left))}
+#tGas{right:calc(16px + env(safe-area-inset-right));bottom:calc(26px + env(safe-area-inset-bottom));width:clamp(84px,22vw,116px);height:clamp(84px,22vw,116px);background:rgba(76,201,100,.28);border-color:rgba(140,233,154,.7)}
+#tBrake{right:calc(clamp(84px,22vw,116px) + 30px + env(safe-area-inset-right));bottom:calc(26px + env(safe-area-inset-bottom));width:clamp(66px,17vw,90px);height:clamp(66px,17vw,90px);background:rgba(255,61,113,.25);border-color:rgba(255,120,150,.7)}
+#tBoost{right:calc(18px + env(safe-area-inset-right));bottom:calc(clamp(84px,22vw,116px) + 44px + env(safe-area-inset-bottom));width:60px;height:60px;font-size:13px;background:rgba(0,229,255,.18);border-color:rgba(0,229,255,.7)}
+#tHand{right:calc(clamp(84px,22vw,116px) + 44px + env(safe-area-inset-right));bottom:calc(clamp(66px,17vw,90px) + 44px + env(safe-area-inset-bottom));width:54px;height:54px;font-size:12px}
+#tCam,#tPause{top:calc(150px + env(safe-area-inset-top));width:46px;height:46px;font-size:18px}
+#tCam{right:calc(16px + env(safe-area-inset-right))}
+#tPause{right:calc(70px + env(safe-area-inset-right))}
+#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#050a1c;font:900 28px "Trebuchet MS",sans-serif;font-style:italic;letter-spacing:.2em;color:var(--ac);z-index:50}
+@media (max-width:640px){
+  #lapbox{left:calc(14px + env(safe-area-inset-left));top:calc(76px + env(safe-area-inset-top))}
+  #times{top:calc(124px + env(safe-area-inset-top));bottom:auto;left:calc(14px + env(safe-area-inset-left));transform:none;min-width:0;font-size:12px;padding:6px 10px}
+  #speedo{left:calc(14px + env(safe-area-inset-left));right:auto;bottom:calc(126px + env(safe-area-inset-bottom));min-width:132px;padding:6px 12px}
+  #hint{display:none}
+  .cards{flex-direction:column}.card{display:flex;gap:10px;align-items:center}.card canvas{width:96px;flex:none}
+  #menu{background:rgba(5,10,28,.88)}
+}
+@media (max-height:520px) and (orientation:landscape){
+  #times{display:none}#speedo{bottom:calc(8px + env(safe-area-inset-bottom));min-width:140px}
+  #tCam,#tPause{top:calc(130px + env(safe-area-inset-top))}
+}
+</style>
+</head>
+<body>
+<canvas id="gl" tabindex="0"></canvas>
+
+<div id="hud" hidden>
+  <div id="fxspeed"></div><div id="fxdmg"></div>
+  <div id="posbox" class="box"><span id="posN">1</span><span id="posSuf">st</span><span id="posTot">/ 6</span></div>
+  <div id="lapbox" class="box">LAP <b id="lapN">1</b><span> / <span id="lapT">3</span></span></div>
+  <div id="times" class="box"><i>TIME</i><b id="tNow">0:00.000</b><i>LAST</i><b id="tLast">--:--.---</b><i>BEST</i><b id="tBest">--:--.---</b></div>
+  <div id="miniwrap" class="box"><canvas id="mini" width="360" height="360"></canvas></div>
+  <div id="speedo" class="box">
+    <span id="gear">N</span>
+    <div id="kmh">0</div><small>KM/H</small>
+    <div class="bar" id="rpmbar"><i></i></div>
+    <div class="bar" id="boostbar"><i></i></div><small>NITRO</small>
+  </div>
+  <div id="center"></div>
+  <div id="toast" class="box"></div>
+  <div id="hint" class="box">
+    <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / arrows drive &nbsp; <kbd>Space</kbd> drift &nbsp; <kbd>Shift</kbd> nitro<br>
+    <kbd>C</kbd> camera &nbsp; <kbd>R</kbd> reset &nbsp; <kbd>P</kbd> pause &nbsp; <kbd>M</kbd> mute
+  </div>
+</div>
+
+<div id="touch" hidden>
+  <div id="tLeft" class="tb">◀</div><div id="tRight" class="tb">▶</div>
+  <div id="tBrake" class="tb">BRAKE</div><div id="tGas" class="tb">GAS</div>
+  <div id="tBoost" class="tb">NITRO</div><div id="tHand" class="tb">DRIFT</div>
+  <div id="tCam" class="tb">⟳</div><div id="tPause" class="tb">❚❚</div>
+</div>
+
+<div id="menu" class="screen">
+  <div class="panel">
+    <div class="logo"><span>VOID</span>FORGE<em>RACING</em></div>
+    <div class="sec"><h3>Track</h3><div id="tracks" class="cards"></div></div>
+    <div class="row">
+      <div class="sec"><h3>Laps</h3><div id="lapsSeg" class="seg"><button data-v="1">1</button><button data-v="3">3</button><button data-v="5">5</button></div></div>
+      <div class="sec"><h3>Opponents</h3><div id="diffSeg" class="seg"><button data-v="0">Easy</button><button data-v="1">Normal</button><button data-v="2">Hard</button></div></div>
+    </div>
+    <div class="sec"><h3>Your car</h3><div id="colors" class="swatches"></div></div>
+    <button id="go" class="big">START RACE</button>
+    <div class="help">
+      <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows to drive · <kbd>Space</kbd> handbrake drift (drifting charges <b>nitro</b>) · <kbd>Shift</kbd> nitro<br>
+      <kbd>C</kbd> change camera · <kbd>R</kbd> reset to track · <kbd>P</kbd> pause · gamepad &amp; touch supported
+    </div>
+  </div>
+</div>
+
+<div id="pause" class="screen" hidden>
+  <div class="panel">
+    <h2>PAUSED</h2>
+    <button id="resume" class="big">RESUME</button>
+    <button id="restart" class="big alt">RESTART RACE</button>
+    <button id="quit" class="big alt">QUIT TO MENU</button>
+  </div>
+</div>
+
+<div id="results" class="screen" hidden>
+  <div class="panel">
+    <h2 id="resTitle">FINISHED</h2>
+    <div class="sub" id="resSub"></div>
+    <table class="res"><thead><tr><th>#</th><th>DRIVER</th><th>BEST LAP</th><th style="text-align:right">TIME</th></tr></thead><tbody id="resBody"></tbody></table>
+    <button id="again" class="big">RACE AGAIN</button>
+    <button id="toMenu" class="big alt">MENU</button>
+  </div>
+</div>
+
+<div id="loading">LOADING…</div>
+<script>/*__BUNDLE__*/</script>
+</body>
+</html>

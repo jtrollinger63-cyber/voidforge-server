@@ -1,0 +1,18 @@
+{
+  "name": "voidforge-racing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VoidForge Racing - a 3D arcade racing game that runs from a single HTML file.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --watch",
+    "validate": "node scripts/validate-tracks.mjs",
+    "test": "node scripts/validate-tracks.mjs && node scripts/sim-test.mjs",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "esbuild": "^0.28.2",
+    "three": "^0.187.0"
+  }
+}
