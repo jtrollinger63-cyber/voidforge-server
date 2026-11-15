@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Embed test</title>
+<style>
+:root{color-scheme:light dark;--bg:#fff;--fg:#14171c;--muted:#5d6572;--line:#c9ced6;--ac:#2563eb;--code:#f3f4f6}
+@media(prefers-color-scheme:dark){:root{--bg:#14171c;--fg:#eef0f3;--muted:#9aa3b0;--line:#363c46;--ac:#6b9bff;--code:#1f242c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif}
+main{max-width:860px;margin:0 auto;padding:24px 16px 40px}
+h1{font-size:1.4rem;margin:0 0 4px}h2{font-size:1rem;margin:28px 0 8px}
+p{margin:0 0 12px;color:var(--muted)}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+input[type=url]{flex:1 1 280px;min-width:0}
+input,button{font:inherit;height:42px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg)}
+button{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:600;cursor:pointer}
+button.alt{background:transparent;color:var(--fg);border-color:var(--line)}
+iframe{display:block;width:100%;height:700px;border:1px solid var(--line);border-radius:10px;margin-top:12px;background:#fff}
+pre{margin:0;padding:12px;background:var(--code);border:1px solid var(--line);border-radius:10px;white-space:pre-wrap;word-break:break-all;font:13px/1.5 ui-monospace,monospace;color:var(--fg)}
+.err{color:#d33;min-height:1.4em;margin:8px 0 0}
+</style>
+</head>
+<body>
+<main>
+  <h1>Search proxy embed test</h1>
+  <p>Paste your deployed proxy address (your Render URL). It loads in an iframe, like a Google Sites embed does.</p>
+  <form class="row" id="f">
+    <input type="url" id="u" placeholder="https://your-service.onrender.com/" aria-label="Proxy URL" required>
+    <button type="submit">Load</button>
+  </form>
+  <div class="err" id="err" role="alert"></div>
+
+  <h2>Paste into Google Sites: Insert &rarr; Embed &rarr; Embed code</h2>
+  <pre id="code"></pre>
+  <div class="row" style="margin-top:8px"><button class="alt" id="copy" type="button">Copy snippet</button></div>
+  <p style="margin-top:12px">Or use <b>Embed &rarr; By URL</b> and paste just the address.</p>
+
+  <iframe id="frame" title="Search proxy" referrerpolicy="no-referrer" hidden></iframe>
+</main>
+<script>
+(function () {
+  var u = document.getElementById('u'), frame = document.getElementById('frame'),
+      code = document.getElementById('code'), err = document.getElementById('err');
+  var PLACEHOLDER = 'https://YOUR-SERVICE.onrender.com/';
+
+  function snippet(url) {
+    return '<iframe src="' + url + '" width="100%" height="700" style="border:0" loading="lazy"></iframe>';
+  }
+  function show(url) { code.textContent = snippet(url || PLACEHOLDER); }
+
+  document.getElementById('f').addEventListener('submit', function (e) {
+    e.preventDefault();
+    err.textContent = '';
+    var url = u.value.trim();
+    if (!/^https?:\/\//i.test(url)) { err.textContent = 'Start the address with https://'; return; }
+    if (url.slice(-1) !== '/' && url.indexOf('?') < 0) url += '/';
+    frame.src = url;
+    frame.hidden = false;
+    show(url);
+  });
+  document.getElementById('copy').addEventListener('click', function (e) {
+    var b = e.currentTarget, t = code.textContent;
+    function done(ok) { b.textContent = ok ? 'Copied' : 'Select the text and copy it'; setTimeout(function () { b.textContent = 'Copy snippet'; }, 1800); }
+    if (navigator.clipboard) navigator.clipboard.writeText(t).then(function () { done(true); }, function () { done(false); });
+    else done(false);
+  });
+
+  var q = new URLSearchParams(location.search).get('url');
+  if (q) { u.value = q; document.getElementById('f').requestSubmit(); } else { show(''); }
+})();
+</script>
+</body>
+</html>

@@ -32,9 +32,10 @@ from yarl import URL
 
 PORT = int(os.environ.get("PORT", "8080"))
 HOST = os.environ.get("HOST", "0.0.0.0")
-# Which sites may embed the proxy. "*" is fine: it has no logins or cookies to protect.
+# Which pages may embed the proxy. "*" is fine: it has no logins or cookies to protect.
+# ("*" does not cover pages opened from disk, hence "file:", which lets embed-test.html work locally.)
 # To lock it down: FRAME_ANCESTORS="https://sites.google.com https://*.googleusercontent.com"
-FRAME_ANCESTORS = os.environ.get("FRAME_ANCESTORS", "*")
+FRAME_ANCESTORS = os.environ.get("FRAME_ANCESTORS", "* file:")
 RATE_LIMIT_PER_MIN = int(os.environ.get("RATE_LIMIT_PER_MIN", "90"))
 MAX_BYTES = 4 * 1024 * 1024
 # Only for testing behind an egress proxy (HTTPS_PROXY). Never needed on a normal host.
@@ -392,7 +393,7 @@ async def home(request):
     options = "".join('<option value="%s">%s</option>' % (k, esc(ENGINES[k]["name"])) for k in ENABLED)
     body = (
         "<h1>Search</h1><form action=\"/search\" method=\"get\">"
-        '<input type="search" name="q" placeholder="Search the web" aria-label="Search" autofocus required>'
+        '<input type="search" name="q" placeholder="Search the web" aria-label="Search" required>'
         '<select name="engine" aria-label="Search engine">%s</select>'
         '<button type="submit">Search</button></form>'
         '<p class="note">Results open inside this page. Links to other websites open in a new tab.</p>' % options

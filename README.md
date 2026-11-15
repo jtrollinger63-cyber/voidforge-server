@@ -22,12 +22,17 @@ The free tier sleeps after ~15 min idle, so the first load after a break takes ~
 **Insert → Embed → By URL**, paste `https://<name>.onrender.com/`, then Insert and resize.
 (Or **Embed code**: `<iframe src="https://<name>.onrender.com/" width="100%" height="700" style="border:0"></iframe>`)
 
+## Test the embed
+
+Open `embed-test.html` in a browser, paste your proxy URL, and press Load. It shows the page inside an
+iframe the same way Google Sites will, and prints the exact snippet to paste.
+
 ## Settings (environment variables, all optional)
 
 | Variable | Default | What it does |
 | --- | --- | --- |
 | `ENGINES` | `bing,ddg,wiki` | Engines offered, first is the default. |
-| `FRAME_ANCESTORS` | `*` | Who may embed it. Lock down with `https://sites.google.com https://*.googleusercontent.com` (add your custom domain if you use one). |
+| `FRAME_ANCESTORS` | `* file:` | Who may embed it. Lock down with `https://sites.google.com https://*.googleusercontent.com` (add your custom domain if you use one). |
 | `RATE_LIMIT_PER_MIN` | `90` | Requests per client per minute. |
 | `EXTRA_ALLOWED_HOSTS` | – | Extra hosts (and subdomains) the proxy may load. |
 
