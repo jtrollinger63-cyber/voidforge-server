@@ -1,0 +1,57 @@
+VOIDFORGE RACING - EMBED CODE
+=============================
+
+Pick ONE of the options below.
+
+
+OPTION 1 - Google Sites, game hosted on HTTPS  (recommended)
+------------------------------------------------------------
+1. Host index.html on any static HTTPS host (GitHub Pages, Netlify, Cloudflare Pages ...).
+   Example GitHub Pages URL:  https://YOUR-USER.github.io/voidforge-server/index.html
+2. In Google Sites:  Insert -> Embed -> "Embed code"  and paste this
+   (replace the src with your real URL):
+
+<div style="position:absolute;inset:0;background:#04060c">
+  <iframe src="https://YOUR-HOST/index.html" title="Voidforge Racing"
+          allow="autoplay; fullscreen; gamepad; accelerometer; gyroscope" allowfullscreen
+          style="width:100%;height:100%;border:0"></iframe>
+</div>
+
+3. Resize the embed box on the page. The game fills whatever size you give it.
+
+Shortcut: Insert -> Embed -> "By URL" and paste only the HTTPS URL of index.html.
+
+
+OPTION 2 - Any web page, responsive 16:9
+----------------------------------------
+Paste where you want the game to appear (replace the src):
+
+<div style="position:relative;width:100%;max-width:1280px;margin:0 auto;aspect-ratio:16/9">
+  <iframe src="https://YOUR-HOST/index.html" title="Voidforge Racing"
+          allow="autoplay; fullscreen; gamepad; accelerometer; gyroscope" allowfullscreen loading="lazy"
+          style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe>
+</div>
+
+If the page sits in the same folder tree as the game, a relative src works too,
+for example src="../index.html" when this file lives in docs/.
+
+
+OPTION 3 - No hosting at all: paste the whole game
+--------------------------------------------------
+index.html is completely self-contained (no external files). The file
+docs/embed-full-game.txt is a copy of it. Open that file, select all, copy, and paste into
+Google Sites:  Insert -> Embed -> "Embed code".
+Note: Google Sites may limit the size of pasted embed code (the game is about 860 KB).
+If it is refused or the page looks empty, use Option 1 instead.
+embed-full-game.txt is a plain copy of index.html; refresh it with
+    cp index.html docs/embed-full-game.txt
+after rebuilding the game.
+
+
+NOTES
+-----
+- The allow="..." list is what lets sound, fullscreen and gamepads work inside the frame.
+- Sound starts after the player's first click or key press (a browser rule).
+- A portrait phone only gets a small 16:9 strip: players should rotate to landscape
+  or open Settings -> Fullscreen.
+- The game pauses automatically when the frame loses focus.

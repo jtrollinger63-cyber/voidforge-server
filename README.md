@@ -72,7 +72,7 @@ The game has **no server-side parts**. Host `index.html` on any static HTTPS hos
 
 **GitHub Pages**: push the repo, then *Settings → Pages → Deploy from branch* (root). The game is at `https://<user>.github.io/<repo>/`.
 
-**Google Sites**: *Insert → Embed → By URL*, paste the HTTPS URL of the hosted page, then resize the box. Or use *Embed code* and paste the snippet from [`docs/embed-example.html`](docs/embed-example.html) (a responsive 16:9 iframe). Tips:
+**Google Sites**: *Insert → Embed → By URL*, paste the HTTPS URL of the hosted page, then resize the box. Or use *Embed code* and paste the snippet from [`docs/embed-example.html`](docs/embed-example.html) (a responsive 16:9 iframe). All copy-paste snippets are collected in [`docs/embed-code.txt`](docs/embed-code.txt); [`docs/embed-full-game.txt`](docs/embed-full-game.txt) is the whole self-contained game as text, to paste into *Embed code* with no hosting (Google Sites may limit the size of pasted code). Tips:
 - The iframe needs `allow="autoplay; fullscreen; gamepad; accelerometer; gyroscope"`. The snippet includes it.
 - Sound starts after the first click or key press (browser rule); pointer lock is never used.
 - Click the game once so it has keyboard focus. The game pauses automatically when the tab/iframe loses focus; use **Settings → Game → Fullscreen** for the best experience.
