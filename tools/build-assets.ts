@@ -14,6 +14,7 @@ import { dedup, prune, resample, weld, simplify, meshopt, quantize, unpartition,
 import { MeshoptEncoder, MeshoptDecoder, MeshoptSimplifier } from 'meshoptimizer';
 import { mkdirSync, statSync, writeFileSync, existsSync } from 'node:fs';
 import { KIT_PIECES, WEAPON3P_PIECES, type PieceSpec } from './asset-config.ts';
+import { rebuildSoldierMesh } from './make-soldier.ts';
 
 await Promise.all([MeshoptEncoder.ready, MeshoptDecoder.ready, MeshoptSimplifier.ready]);
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
@@ -91,10 +92,13 @@ async function buildSoldier() {
   const before = await io.read(src);
   const clipNames = before.getRoot().listAnimations().map((a) => a.getName());
   const jointNames = before.getRoot().listSkins()[0]!.listJoints().map((j) => j.getName());
+  const rawTris = triCount(before);
+  const report = rebuildSoldierMesh(before);          // makeover: one skinned primitive + gear + atlas UVs
+  console.log(`soldier makeover: ${rawTris} -> ${report.tris} tris (${report.gearParts} gear parts, +${report.gearTris} tris), ${report.verts} verts, 1 primitive`);
   await before.transform(
     resample({ tolerance: 1e-4 }),
     dedup(),
-    prune({ keepLeaves: true }),          // keepLeaves: the Socket_* empties MUST survive
+    prune({ keepLeaves: true, keepAttributes: true }), // keepLeaves: Socket_* empties MUST survive; keepAttributes: atlas UVs are bound to a runtime texture
     meshopt({ encoder: MeshoptEncoder, level: 'medium' }),
   );
   await io.write(`${OUT}/soldier.glb`, before);
@@ -110,8 +114,8 @@ async function buildSoldier() {
   if (!ok) { console.error('FATAL: soldier rig changed during optimization'); process.exit(2); }
   manifest.assets.push({
     file: 'soldier.glb', license: 'CC0-1.0', source: 'https://toolbenchdev.com/gamedev/cc0-game-assets/low-poly-squad-kit/',
-    originalBytes: statSync(src).size, optimizedBytes: bytes, trisBefore: 3368, trisAfter: triCount(after),
-    notes: 'Toolbench Low-poly Squad Kit figure. 22 bones, 4 sockets, 53 clips preserved; animation tracks resampled (tol 1e-4) and meshopt-compressed.',
+    originalBytes: statSync(src).size, optimizedBytes: bytes, trisBefore: rawTris, trisAfter: triCount(after),
+    notes: 'Toolbench Low-poly Squad Kit figure. 22 bones, 4 sockets, 53 clips preserved; mesh rebuilt as one skinned primitive with atlas UVs + ' + report.gearParts + ' added gear parts (see tools/make-soldier.ts); animation tracks resampled (tol 1e-4) and meshopt-compressed.',
     clips: aClips, joints: aJoints, sockets,
   });
 }

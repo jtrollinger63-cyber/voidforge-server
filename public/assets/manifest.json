@@ -1,15 +1,15 @@
 {
- "generated": "2026-11-22T06:41:19.287Z",
+ "generated": "2026-11-22T06:59:59.131Z",
  "assets": [
   {
    "file": "soldier.glb",
    "license": "CC0-1.0",
    "source": "https://toolbenchdev.com/gamedev/cc0-game-assets/low-poly-squad-kit/",
    "originalBytes": 1846968,
-   "optimizedBytes": 665568,
+   "optimizedBytes": 692004,
    "trisBefore": 3368,
-   "trisAfter": 3368,
-   "notes": "Toolbench Low-poly Squad Kit figure. 22 bones, 4 sockets, 53 clips preserved; animation tracks resampled (tol 1e-4) and meshopt-compressed.",
+   "trisAfter": 4308,
+   "notes": "Toolbench Low-poly Squad Kit figure. 22 bones, 4 sockets, 53 clips preserved; mesh rebuilt as one skinned primitive with atlas UVs + 65 added gear parts (see tools/make-soldier.ts); animation tracks resampled (tol 1e-4) and meshopt-compressed.",
    "clips": [
     "aim",
     "aim_bow",
