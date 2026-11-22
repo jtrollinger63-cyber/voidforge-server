@@ -104,8 +104,8 @@ export class MatchRunner {
       if (h.left || !h.s.connected) continue;
       const p = this.sim.players.get(h.pid); if (!p) continue;
       const q = h.queue.shift();
-      if (q) { h.last = q.cmd; h.ack = q.seq; p.cmd = { ...q.cmd }; }
-      else { p.cmd = { ...h.last, reload: false, slot: -1 }; }
+      if (q) { h.last = q.cmd; h.ack = q.seq; p.cmd = { ...q.cmd, aim: q.cmd.aim === true }; }
+      else { p.cmd = { ...h.last, reload: false, slot: -1, aim: h.last.aim === true }; }
     }
     this.sim.step(TICK);
     // position history for lag compensation
@@ -184,5 +184,5 @@ export class MatchRunner {
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const r3 = (n: number) => Math.round(n * 1000) / 1000;
-function toWire(c: ReturnType<typeof emptyCmd>): WireCmd { return { fwd: c.fwd, strafe: c.strafe, jump: c.jump, crouch: c.crouch, walk: c.walk, yaw: c.yaw, pitch: c.pitch, fire: c.fire, reload: c.reload, use: c.use, slot: c.slot }; }
+function toWire(c: ReturnType<typeof emptyCmd>): WireCmd { return { fwd: c.fwd, strafe: c.strafe, jump: c.jump, crouch: c.crouch, walk: c.walk, yaw: c.yaw, pitch: c.pitch, fire: c.fire, reload: c.reload, use: c.use, slot: c.slot, aim: c.aim }; }
 void WEAPONS; void ({} as WeaponId);

@@ -58,7 +58,7 @@ export type ClientMsg =
   | { t: 'queue.join'; mode: Mode } | { t: 'queue.leave' }
   | { t: 'match.cmd'; seq: number; cmd: WireCmd; view: number } | { t: 'match.buy'; item: string } | { t: 'match.leave' };
 
-export interface WireCmd { fwd: number; strafe: number; jump: boolean; crouch: boolean; walk: boolean; yaw: number; pitch: number; fire: boolean; reload: boolean; use: boolean; slot: number; }
+export interface WireCmd { fwd: number; strafe: number; jump: boolean; crouch: boolean; walk: boolean; yaw: number; pitch: number; fire: boolean; reload: boolean; use: boolean; slot: number; aim?: boolean; }
 
 /** server -> client */
 export type ServerMsg =
@@ -101,7 +101,7 @@ export function validCmd(c: unknown): WireCmd | null {
   return {
     fwd: num(o.fwd, -1, 1), strafe: num(o.strafe, -1, 1), jump: bool(o.jump), crouch: bool(o.crouch), walk: bool(o.walk),
     yaw: num(o.yaw, -1e4, 1e4), pitch: num(o.pitch, -1.57, 1.57), fire: bool(o.fire), reload: bool(o.reload), use: bool(o.use),
-    slot: Math.trunc(num(o.slot, -1, 2, -1)),
+    slot: Math.trunc(num(o.slot, -1, 2, -1)), aim: bool(o.aim),
   };
 }
 

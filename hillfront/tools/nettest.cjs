@@ -17,10 +17,11 @@ const ok = (name, cond, info) => { R.push({ name, pass: !!cond }); console.log((
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let server = null;
-const killServer = () => { try { server && server.kill('SIGKILL'); } catch { /* gone */ } };
+// the server is `npx -> sh -> node`: kill the whole process group, or the node grandchild survives and poisons the next run (stale matches, duplicate names)
+const killServer = () => { try { if (server) process.kill(-server.pid, 'SIGKILL'); } catch { try { server && server.kill('SIGKILL'); } catch { /* gone */ } } };
 process.on('exit', killServer);
 (async () => {
-  server = spawn('npx', ['tsx', 'server/index.ts'], { env: { ...process.env, PORT: String(PORT) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  server = spawn('npx', ['tsx', 'server/index.ts'], { env: { ...process.env, PORT: String(PORT) }, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
   let slog = ''; server.stdout.on('data', (d) => (slog += d)); server.stderr.on('data', (d) => (slog += d));
   for (let i = 0; i < 60; i++) { try { const r = await fetch(`http://127.0.0.1:${PORT}/health`); if (r.ok) break; } catch { /* not yet */ } await sleep(250); }
   const health0 = await (await fetch(`http://127.0.0.1:${PORT}/health`)).json();
@@ -71,7 +72,7 @@ process.on('exit', killServer);
   ok('join request goes to the LEADER only (member did not get it)', invitedGotIt === 0);
   await host.page.screenshot({ timeout: 120000, path: out + '/03-host-request.png' });
   await host.page.click('[data-pending=request] [data-act=accept]');
-  await requester.page.waitForFunction('window.__hf.online.party && window.__hf.online.party.members.length === 3', null, { timeout: 10000 });
+  for (const c of [host, invited, requester]) await c.page.waitForFunction('window.__hf.online.party && window.__hf.online.party.members.length === 3', null, { timeout: 15000 });
   ok('request accepted -> party of three on every client', await Promise.all([host, invited, requester].map((c) => c.page.evaluate(() => window.__hf.online.party && window.__hf.online.party.members.length))).then((a) => a.every((n) => n === 3)));
 
   // ready up + leader settings + start
@@ -106,9 +107,15 @@ process.on('exit', killServer);
   const p1 = await posOnRequester();
   const moved = Math.hypot(p1.x - p0.x, p1.z - p0.z);
   ok("host's movement is visible in ANOTHER browser through the server", moved > 2, `moved ${moved.toFixed(1)} m as seen by the requester`);
-  const hostSelf = await host.page.evaluate(() => { const g = window.__hf.game; const me = g.view.players.get(g.localId); return { x: me.x, z: me.z, corr: g.session.lastCorrection }; });
-  const hostAsSeen = await requester.page.evaluate((hid) => { const p = window.__hf.game.view.players.get(hid); return { x: p.x, z: p.z }; }, host.id);
-  ok('client-side prediction agrees with the server (within 1.5 m of what others see)', Math.hypot(hostSelf.x - hostAsSeen.x, hostSelf.z - hostAsSeen.z) < 1.5, `self (${hostSelf.x.toFixed(1)},${hostSelf.z.toFixed(1)}) vs others (${hostAsSeen.x.toFixed(1)},${hostAsSeen.z.toFixed(1)})`);
+  // once the host is standing still, what the host sees of itself (prediction) and what another client sees (server state) must converge
+  let gap = Infinity, hostSelf = null, hostAsSeen = null;
+  for (let i = 0; i < 25 && gap > 0.3; i++) {
+    hostSelf = await host.page.evaluate(() => { const g = window.__hf.game; const me = g.view.players.get(g.localId); return { x: me.x, z: me.z, corr: g.session.lastCorrection }; });
+    hostAsSeen = await requester.page.evaluate((hid) => { const p = window.__hf.game.view.players.get(hid); return { x: p.x, z: p.z }; }, host.id);
+    gap = Math.hypot(hostSelf.x - hostAsSeen.x, hostSelf.z - hostAsSeen.z);
+    if (gap > 0.3) await sleep(400);
+  }
+  ok('client-side prediction agrees with the server (converges to what others see)', gap < 0.5, `self (${hostSelf.x.toFixed(1)},${hostSelf.z.toFixed(1)}) vs others (${hostAsSeen.x.toFixed(1)},${hostAsSeen.z.toFixed(1)}), gap ${gap.toFixed(2)} m`);
   await requester.page.screenshot({ timeout: 120000, path: out + '/07-requester-sees-host-move.png' });
 
   // leave -> back to menu, party survives
@@ -125,6 +132,6 @@ process.on('exit', killServer);
   ok('no uncaught page errors in any browser', [host, invited, requester].every((c) => c.errs.length === 0), JSON.stringify([host, invited, requester].map((c) => c.errs)));
   const fails = R.filter((r) => !r.pass).length;
   console.log('\n' + (R.length - fails) + '/' + R.length + ' online checks passed');
-  await browser.close(); server.kill('SIGTERM');
+  await browser.close(); killServer();
   process.exit(fails ? 1 : 0);
 })().catch((e) => { console.error('TEST CRASHED', e); killServer(); process.exit(2); });

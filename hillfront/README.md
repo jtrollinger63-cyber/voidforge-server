@@ -28,7 +28,7 @@ Open **http://localhost:5173**. *Quick match* starts a 5v5 against bots with no 
 | `npm run assets:fetch` / `assets:build` | download + optimise the CC0 assets (`tools/asset-config.ts`) |
 | `npm run assets:import` | inspect/optimise the CuiGames ZIPs you place in `assets/inbox/` |
 
-Controls (rebindable): `WASD` move · mouse look/fire · `Space` jump · `C`/`Ctrl` crouch · `Shift` walk · `R` reload · `E` hold to plant/disarm · `B` buy menu · `Tab` scoreboard · `1 2 3` weapons · `F` inspect · `Esc` pause. Arrow keys always turn the camera (works where the browser refuses mouse capture); holding the right mouse button and dragging also looks around.
+Controls (rebindable): `WASD` move · mouse look · left click fire · **right click / `Z` aim down sights (hold)** · `Space` jump · `C`/`Ctrl` crouch · `Shift` walk · `R` reload · `E` hold to plant/disarm · `B` buy menu · `Tab` scoreboard · `1 2 3` weapons · `F` inspect · `Esc` pause. Arrow keys always turn the camera; where the browser refuses mouse capture (embedded windows) the cursor steers instead (see [docs/AIM_AND_VIEW.md](docs/AIM_AND_VIEW.md)).
 
 ---
 
@@ -72,7 +72,7 @@ Grenades/smoke/flash (their models are in the kit but no gameplay), more than on
 | ![tun](docs/evidence/map-tunnel.jpg) **West tunnel** | ![party](docs/evidence/party-roster.jpg) **Party roster** (3 real browsers) |
 | ![net](docs/evidence/online-second-browser.jpg) **A second browser** watching the human host run | ![rel](docs/evidence/release-offline-ingame.jpg) **The 2.4 MB release file**, network blocked |
 
-Soldier before/after: [docs/evidence/soldier-before-after.jpg](docs/evidence/soldier-before-after.jpg) · texture atlas: [docs/evidence/soldier-atlas.png](docs/evidence/soldier-atlas.png)
+Soldier before/after: [docs/evidence/soldier-before-after.jpg](docs/evidence/soldier-before-after.jpg) · weapons in hand: [third person](docs/evidence/weapon-hold-before-after.jpg), [first person](docs/evidence/viewmodel-before-after.jpg), [floating parts joined](docs/evidence/weapon-parts-before-after.jpg), [aim down sights](docs/evidence/aim-down-sights.jpg) · texture atlas: [docs/evidence/soldier-atlas.png](docs/evidence/soldier-atlas.png)
 
 ## Layout
 ```
@@ -88,7 +88,7 @@ src/audio      sfx.ts (WebAudio synthesis)
 server/        hub, party, lobby (+matchmaking), match (authoritative runner), index
 tools/         asset pipeline, soldier makeover, size gate, tests/QA drivers
 tests/         vitest suites
-docs/          ASSETS (generated), ANIMATIONS, NETWORK, PERFORMANCE, TESTING, SIZE_REPORT (generated)
+docs/          ASSETS (generated), ANIMATIONS, AIM_AND_VIEW, NETWORK, PERFORMANCE, TESTING, SIZE_REPORT (generated)
 ```
 The simulation (`src/gameplay`, `src/map`) is pure TypeScript with no DOM or three.js, so the **same code runs offline in the browser and authoritatively on the server**.
 

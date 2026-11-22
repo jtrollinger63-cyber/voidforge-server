@@ -16,15 +16,17 @@ export interface Hold {
   guard?: [number, number];
   barrelY: number;
   muzzleZ: number;
+  /** tips of the rear and front iron sights (model space): aiming down sights lines these up with the camera axis. Read from the baked geometry. */
+  sights?: { rear: [number, number, number]; front: [number, number, number] };
 }
 
 export const HOLDS: Record<string, Hold> = {
-  'attacker-rifle':   { grip: [0, 0.095, -0.20], fore: [0, 0.186, 0.135], guard: [0.03, 0.25], barrelY: 0.236, muzzleZ: 0.436 },
-  'defender-carbine': { grip: [0, 0.095, -0.17], fore: [0, 0.186, 0.105], guard: [0.02, 0.20], barrelY: 0.236, muzzleZ: 0.369 },
-  'full-smg':         { grip: [0, 0.095, -0.13], fore: [0, 0.186, 0.085], guard: [0.02, 0.15], barrelY: 0.236, muzzleZ: 0.292 },
-  'pump-shotgun':     { grip: [0, 0.095, -0.21], fore: [0, 0.176, 0.13], barrelY: 0.236, muzzleZ: 0.474 },       // already has a forend
-  'marksman-rifle':   { grip: [0, 0.095, -0.23], fore: [0, 0.186, 0.13], guard: [0.02, 0.26], barrelY: 0.236, muzzleZ: 0.508 },   // scope sits on the barrel above the palm
-  'service-pistol':   { grip: [0, 0.095, -0.07], fore: null, barrelY: 0.136, muzzleZ: 0.127 },
+  'attacker-rifle':   { grip: [0, 0.095, -0.20], fore: [0, 0.186, 0.135], guard: [0.03, 0.25], barrelY: 0.236, muzzleZ: 0.436, sights: { rear: [0, 0.311, -0.14], front: [0, 0.325, 0.256] } },
+  'defender-carbine': { grip: [0, 0.095, -0.17], fore: [0, 0.186, 0.105], guard: [0.02, 0.20], barrelY: 0.236, muzzleZ: 0.369, sights: { rear: [0, 0.310, -0.1175], front: [0, 0.325, 0.217] } },
+  'full-smg':         { grip: [0, 0.095, -0.13], fore: [0, 0.186, 0.085], guard: [0.02, 0.15], barrelY: 0.236, muzzleZ: 0.292, sights: { rear: [0, 0.296, -0.10], front: [0, 0.325, 0.172] } },
+  'pump-shotgun':     { grip: [0, 0.095, -0.21], fore: [0, 0.176, 0.13], barrelY: 0.236, muzzleZ: 0.474, sights: { rear: [0, 0.310, -0.1535], front: [0, 0.325, 0.278] } },       // already has a forend
+  'marksman-rifle':   { grip: [0, 0.095, -0.23], fore: [0, 0.186, 0.13], guard: [0.02, 0.26], barrelY: 0.236, muzzleZ: 0.508, sights: { rear: [0, 0.319, -0.143], front: [0, 0.319, 0.147] } },   // aim through the scope tube; hand sits under it
+  'service-pistol':   { grip: [0, 0.095, -0.07], fore: null, barrelY: 0.136, muzzleZ: 0.127, sights: { rear: [0, 0.186, -0.09], front: [0, 0.189, 0.095] } },
   'combat-knife':     { grip: [0, 0.02, -0.11], fore: null, barrelY: 0.02, muzzleZ: 0.176 },
 };
 export const DEFAULT_HOLD: Hold = { grip: [0, 0.095, -0.12], fore: null, barrelY: 0.236, muzzleZ: 0.3 };

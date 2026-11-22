@@ -16,6 +16,7 @@ import type { GripSet, WeaponId } from '../gameplay/weapons.ts';
 import { WEAPONS } from '../gameplay/weapons.ts';
 import { solveTwoBone } from './ik.ts';
 import { HOLDS, DEFAULT_HOLD, guardParts } from '../weapons/holds.ts';
+import { FILLERS, fillerGeometries, fillerMaterial } from '../weapons/fillers.ts';
 
 const WEAPONS_NOFLASH = ['knife'];
 const UPPER = new Set(['Spine', 'Chest', 'Neck', 'Head', 'Shoulder_L', 'UpperArm_L', 'LowerArm_L', 'Hand_L', 'Shoulder_R', 'UpperArm_R', 'LowerArm_R', 'Hand_R']);
@@ -67,6 +68,17 @@ function worldWeapon(src: THREE.Object3D, key: string): { geo: THREE.BufferGeome
   });
   const gd = HOLDS[key]?.guard;
   if (gd && parts.length) parts.push(guardGeometry(gd[0], gd[1], parts[0]!));
+  // blocks that join the parts the pack leaves floating (lower receiver, sight base, knife pommel core): see weapons/fillers.ts
+  const fset = FILLERS[key];
+  if (fset && parts.length) {
+    for (const { geo: g0, ref } of fillerGeometries(key)) {
+      const fm = fillerMaterial(src, ref); const fc = fm ? fm.color.clone() : new THREE.Color(0.05, 0.05, 0.055);
+      if (fm && fm.metalness > 0.5) fc.multiplyScalar(0.62).lerp(new THREE.Color(0.32, 0.34, 0.36), 0.35);
+      const g = parts[0]!.index ? g0 : g0.toNonIndexed(); if (g !== g0) g0.dispose();
+      const n = g.attributes.position!.count, ca = new Float32Array(n * 3); for (let i = 0; i < n; i++) { ca[i * 3] = fc.r; ca[i * 3 + 1] = fc.g; ca[i * 3 + 2] = fc.b; }
+      g.setAttribute('color', new THREE.BufferAttribute(ca, 3)); g.deleteAttribute('uv'); parts.push(g);
+    }
+  }
   const geo = mergeGeometries(parts, false)!; for (const p of parts) p.dispose();
   geo.computeBoundingBox();
   c = { geo, box: geo.boundingBox!.clone() }; weaponCache.set(key, c);

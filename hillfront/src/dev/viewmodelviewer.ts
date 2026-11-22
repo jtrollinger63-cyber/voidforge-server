@@ -1,5 +1,5 @@
 // First-person viewmodel QA viewer (?viewer=viewmodel): renders exactly what the player sees, deterministically.
-//   ?weapon=a5|m9|t12|r7|p50|knife  ?team=0|1  ?state=idle|fire|reload|inspect|run|equip  ?k=0..1 (reload progress)  ?t=settle seconds
+//   ?weapon=a5|m9|t12|r7|p50|knife  ?team=0|1  ?state=idle|fire|reload|inspect|run|equip  ?k=0..1 (reload progress)  ?t=settle seconds  ?aim=0..1 (aim down sights)
 //   ?cam=x,y,z,tx,ty,tz  (viewmodel space; default = the real first-person camera)  ?fov=  ?w=&h= (aspect)
 import * as THREE from 'three';
 import { createStage } from '../engine/renderer.ts';
@@ -14,6 +14,7 @@ export async function runViewmodelViewer(params: URLSearchParams, state: Record<
   floor.rotation.x = -Math.PI / 2; stage.scene.add(floor);
   stage.camera.position.set(0, 1.6, 0); stage.camera.lookAt(0, 1.45, -10);
   const assets = await loadSoldierAssets();
+  Viewmodel.skipFillers = params.get('fillers') === '0';
   const vm = new Viewmodel(assets.weapons);
   const weapon = (params.get('weapon') ?? 'a5') as WeaponId;
   const team = Number(params.get('team') ?? '0') as 0 | 1;
@@ -23,7 +24,7 @@ export async function runViewmodelViewer(params: URLSearchParams, state: Record<
   const W = innerWidth, H = innerHeight;
   vm.resize(W / H, Number(params.get('fov') ?? '75'));
 
-  const view: VmState = { alive: true, weapon, speed: st === 'run' ? 5.2 : 0, onGround: true, crouching: false, firedAt: -9, reloadAt: -9, reloading: false, reloadT: 0, equipT: 1, time: 10, turnX: 0, turnY: 0, reduceMotion: true, dt: 1 / 60 };
+  const view: VmState = { alive: true, weapon, speed: st === 'run' ? 5.2 : 0, onGround: true, crouching: false, firedAt: -9, reloadAt: -9, reloading: false, reloadT: 0, equipT: 1, time: 10, turnX: 0, turnY: 0, reduceMotion: true, dt: 1 / 60, aim: Number(params.get('aim') ?? '0') };
   const dt = 1 / 60, settle = Number(params.get('t') ?? '1.4'), steps = Math.round(settle / dt);
   const k = Number(params.get('k') ?? '0.3');
   if (st === 'inspect') vm.inspect();
@@ -34,6 +35,7 @@ export async function runViewmodelViewer(params: URLSearchParams, state: Record<
     if (st === 'inspect' && i === 0) vm.inspect();
     vm.update(dt, view);
   }
+  if (params.get('hands') === '0') for (const h of [(vm as any).handR, (vm as any).handL]) { h.root.visible = h.forearm.visible = h.cuff.visible = false; h.setKind = () => {}; }
   const cam = params.get('cam');
   if (cam) {
     const c = cam.split(',').map(Number);

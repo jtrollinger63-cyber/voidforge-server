@@ -49,8 +49,18 @@ export interface Cmd {
   fire: boolean; reload: boolean; use: boolean;
   /** -1 none, 0 primary, 1 secondary, 2 melee */
   slot: number;
+  /** holding aim-down-sights (the client clears it while reloading / equipping / planting) */
+  aim: boolean;
 }
-export const emptyCmd = (): Cmd => ({ fwd: 0, strafe: 0, jump: false, crouch: false, walk: false, yaw: 0, pitch: 0, fire: false, reload: false, use: false, slot: -1 });
+export const emptyCmd = (): Cmd => ({ fwd: 0, strafe: 0, jump: false, crouch: false, walk: false, yaw: 0, pitch: 0, fire: false, reload: false, use: false, slot: -1, aim: false });
+
+/** ADS: tighter spread, a little less recoil, slower movement. One definition shared by the sim, the client prediction and the HUD. */
+export const AIM = { spreadMul: 0.42, kickMul: 0.8, moveMul: 0.78 } as const;
+
+/** where the crosshair — and every bullet — points: the aim plus the current view punch. The camera and the sim both call this, so they cannot disagree. */
+export function viewAngles(yaw: number, pitch: number, punchY: number, punchP: number): { yaw: number; pitch: number } {
+  return { yaw: yaw + punchY * DEG, pitch: pitch + punchP * DEG };
+}
 
 export interface AmmoState { mag: number; reserve: number; }
 
@@ -70,6 +80,8 @@ export interface Player {
   firedAt: number; reloadAt: number; hurtAt: number; diedAt: number;
   speed: number;
   noiseT: number;
+  /** state at the START of the last fixed tick, so renderers can interpolate between ticks instead of stepping at 60 Hz */
+  prev: { x: number; y: number; z: number; yaw: number; pitch: number };
   /** damage dealt this round per victim (assist tracking) */
   dmgTo: Record<number, number>;
 }
@@ -165,7 +177,7 @@ export class GameSim {
       fireCd: 0, reloadT: 0, equipT: 0, firePrev: false, reloadPrev: false,
       kills: 0, deaths: 0, assists: 0, score: 0, roundKills: 0,
       hasDevice: false, useT: 0, using: 'none', cmd: emptyCmd(), lastHurt: null, ping: 0,
-      firedAt: -9, reloadAt: -9, hurtAt: -9, diedAt: -9, speed: 0, noiseT: 0, dmgTo: {},
+      firedAt: -9, reloadAt: -9, hurtAt: -9, diedAt: -9, speed: 0, noiseT: 0, prev: { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 }, dmgTo: {},
     };
     this.giveDefaultLoadout(p);
     this.players.set(p.id, p);
@@ -233,6 +245,7 @@ export class GameSim {
     p.hp = 100; p.alive = true; p.hasDevice = false; p.useT = 0; p.using = 'none';
     p.fireCd = 0; p.reloadT = 0; p.equipT = 0.3; p.cur = p.slots[0] ? 0 : 1; p.lastHurt = null;
     p.cmd = emptyCmd(); p.cmd.yaw = p.yaw;
+    p.prev = { x: p.m.x, y: p.m.y, z: p.m.z, yaw: p.yaw, pitch: p.pitch };
   }
 
   private endRound(winner: Team | null, reason: string) {
@@ -278,6 +291,8 @@ export class GameSim {
     const step = 1 / RULES.tickRate;
     while (this.acc >= step) { this.step(step); this.acc -= step; }
   }
+  /** 0..1: how far wall-clock time is into the next fixed tick (renderers interpolate prev -> current by this) */
+  get renderAlpha(): number { return Math.min(1, Math.max(0, this.acc * RULES.tickRate)); }
 
   step(dt: number) {
     this.time += dt; this.tick++;
@@ -290,6 +305,7 @@ export class GameSim {
     const frozen = this.phase === 'freeze';
     for (const p of this.players.values()) {
       if (!p.alive) continue;
+      p.prev.x = p.m.x; p.prev.y = p.m.y; p.prev.z = p.m.z; p.prev.yaw = p.yaw; p.prev.pitch = p.pitch;
       this.stepPlayer(p, dt, frozen);
     }
     this.stepDevice(dt);
@@ -342,7 +358,7 @@ export class GameSim {
     // movement
     const planting = p.using !== 'none';
     const mv = { fwd: frozen || planting ? 0 : c.fwd, strafe: frozen || planting ? 0 : c.strafe, jump: !frozen && !planting && c.jump, crouch: c.crouch, walk: c.walk, yaw: p.yaw };
-    stepMovement(this.world, p.m, mv, dt, def.moveMul);
+    stepMovement(this.world, p.m, mv, dt, def.moveMul * (c.aim && def.slot !== 'melee' ? AIM.moveMul : 1));
     p.speed = Math.hypot(p.m.vx, p.m.vz);
     if (p.m.justLanded && p.m.landSpeed > 11) { // hard landings hurt a little
       this.damageRaw(p, Math.round((p.m.landSpeed - 11) * 8), -1);
@@ -430,8 +446,11 @@ export class GameSim {
     if (!p.m.onGround) spread += def.spreadJump;
     if (p.m.crouching) spread *= def.crouchMul;
     spread *= 1 + Math.min(p.spray, 12) * 0.035;
+    const aiming = p.cmd.aim && p.reloadT <= 0 && p.equipT <= 0;
+    if (aiming) spread *= AIM.spreadMul;
 
-    const baseYaw = p.yaw + p.punchY * DEG, basePitch = p.pitch + p.punchP * DEG;
+    const va = viewAngles(p.yaw, p.pitch, p.punchY, p.punchP);
+    const baseYaw = va.yaw, basePitch = va.pitch;
     for (let k = 0; k < def.pellets; k++) {
       const ang = spread * DEG * Math.sqrt(this.rng()), phi = this.rng() * Math.PI * 2;
       const yaw = baseYaw + ang * Math.cos(phi), pit = basePitch + ang * Math.sin(phi);
@@ -451,7 +470,7 @@ export class GameSim {
     }
     // recoil: pattern climbs then drifts sideways
     p.spray++;
-    const kick = def.kick * (1 + Math.min(p.spray, 10) * 0.05);
+    const kick = def.kick * (1 + Math.min(p.spray, 10) * 0.05) * (aiming ? AIM.kickMul : 1);
     p.punchP = Math.min(12, p.punchP + kick);
     p.punchY += def.kickYaw * Math.sin(p.spray * 1.7 + (p.id % 3)) ;
     this.noises.push({ x: ox, z: oz, t: this.time, squad: p.squad, loud: 3 });
