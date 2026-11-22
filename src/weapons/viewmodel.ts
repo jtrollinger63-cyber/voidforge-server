@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { WEAPONS, type WeaponId } from '../gameplay/weapons.ts';
 import { HOLDS, DEFAULT_HOLD, guardParts, type Hold } from './holds.ts';
+import { FILLERS, fillerGeometries, fillerMaterial } from './fillers.ts';
 
 /** where the GRIP point of the weapon sits in view space (camera at the origin looking down -Z), plus recoil character */
 interface FpPose {
@@ -34,6 +35,8 @@ export interface VmState {
   alive: boolean; weapon: WeaponId; speed: number; onGround: boolean; crouching: boolean;
   firedAt: number; reloadAt: number; reloading: boolean; reloadT: number; equipT: number; time: number;
   turnX: number; turnY: number; reduceMotion: boolean; dt: number;
+  /** 0..1 aim-down-sights amount (eased by the caller) */
+  aim: number;
 }
 
 interface Brass { mesh: THREE.Mesh; vel: THREE.Vector3; life: number; }
@@ -133,6 +136,8 @@ class Hand {
 // ---------------------------------------------------------------------------------------------------------------------------
 
 export class Viewmodel {
+  /** QA only: render the weapons exactly as the pack ships them (floating parts and all) for before/after captures */
+  static skipFillers = false;
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(62, 1, 0.01, 5);
   private rig = new THREE.Group();
@@ -151,6 +156,7 @@ export class Viewmodel {
   private glove = new THREE.MeshStandardMaterial({ color: 0x4a4d53, roughness: 0.75 });
   private handR: Hand; private handL: Hand;
   private guardMeshes: THREE.Mesh[] = [];
+  private fillerMeshes: THREE.Mesh[] = [];
   private flash: THREE.Group;
   private flashT = 0;
   private kick = 0; private lastFired = -9; private lastReload = -9;
@@ -194,7 +200,8 @@ export class Viewmodel {
     void fovBase;
     if (this.current) this.model.remove(this.current);
     for (const m of this.guardMeshes) { m.removeFromParent(); m.geometry.dispose(); }
-    this.guardMeshes = [];
+    for (const m of this.fillerMeshes) { m.removeFromParent(); m.geometry.dispose(); }
+    this.guardMeshes = []; this.fillerMeshes = [];
     const def = WEAPONS[id];
     const name = team === 0 ? def.model3p.vanguard : def.model3p.garrison;
     const src = this.src.getObjectByName(name);
@@ -205,6 +212,11 @@ export class Viewmodel {
     // the same procedural handguard the third-person model gets, so the support hand holds something
     if (this.hold.guard) for (const p of guardParts(this.hold.guard[0], this.hold.guard[1], this.hold.barrelY)) {
       const m = new THREE.Mesh(p.geo, new THREE.MeshStandardMaterial({ color: new THREE.Color(p.color[0], p.color[1], p.color[2]), roughness: 0.55, metalness: 0.3 })); m.frustumCulled = false; w.add(m); this.guardMeshes.push(m);
+    }
+    // join the pieces the pack leaves floating (see fillers.ts); same colour as the neighbouring kit material
+    this.fillerMeshes = [];
+    if (FILLERS[name] && !Viewmodel.skipFillers) for (const { geo, ref } of fillerGeometries(name)) {
+      const fm = fillerMaterial(w, ref); const m = new THREE.Mesh(geo, fm ?? new THREE.MeshStandardMaterial({ color: 0x0d0d0f, roughness: 0.6 })); m.frustumCulled = false; w.add(m); this.fillerMeshes.push(m);
     }
     this.model.add(w); this.current = w;
     this.model.rotation.set(0, Math.PI, 0);   // model +Z (muzzle) -> view -Z
@@ -231,7 +243,8 @@ export class Viewmodel {
 
   inspect() { if (this.inspectT < 0) this.inspectT = 0; }
 
-  resize(aspect: number, fov: number) { this.camera.aspect = aspect; this.camera.fov = Math.min(80, fov * 0.78 + (this.baseFov - 70) * 0.25); this.camera.updateProjectionMatrix(); }
+  /** the viewmodel has its own fixed FOV, so changing the world FOV (or zooming) never resizes the gun */
+  resize(aspect: number, fov: number) { void fov; this.camera.aspect = aspect; this.camera.fov = 60 + (this.baseFov - 70) * 0.25; this.camera.updateProjectionMatrix(); }
 
   private ejectBrass() {
     const b = this.brass[this.brassNext++ % this.brass.length]!;
@@ -257,7 +270,7 @@ export class Viewmodel {
     // ---- pose composition
     const move = Math.min(1, s.speed / 5.2) * (s.onGround ? 1 : 0.15);
     this.bobT += dt * (3 + move * 7.5);
-    const bobAmp = s.reduceMotion ? 0 : move;
+    const bobAmp = s.reduceMotion ? 0 : move * (1 - 0.7 * s.aim);        // steadier while aiming
     const bobX = Math.sin(this.bobT) * 0.012 * bobAmp, bobY = Math.abs(Math.cos(this.bobT)) * 0.014 * bobAmp - 0.004 * bobAmp;
     this.swayX += (-s.turnX * 0.9 - this.swayX) * Math.min(1, dt * 9); this.swayY += (-s.turnY * 0.9 - this.swayY) * Math.min(1, dt * 9);
     const sx = THREE.MathUtils.clamp(this.swayX, -0.04, 0.04), sy = THREE.MathUtils.clamp(this.swayY, -0.03, 0.03);
@@ -303,6 +316,19 @@ export class Viewmodel {
     }
     this.lmag += (leftToMag - this.lmag) * Math.min(1, dt * 14);
 
+    // aim down sights: bring the rear and front sight tips onto the camera axis (slightly below it so the target stays visible above the front post)
+    const sights = this.hold.sights;
+    if (s.aim > 0.001 && sights && s.weapon !== 'knife') {
+      const k = s.aim * s.aim * (3 - 2 * s.aim);
+      const sc = p.scale, gr = this.hold.grip, r = sights.rear, f = sights.front;
+      const slope = Math.atan2(f[1] - r[1], f[2] - r[2]);               // sight line rises toward the muzzle by this much: tilt the gun down by it
+      const c = Math.cos(-slope), sn = Math.sin(-slope);
+      const qx = gr[0] - r[0], qy = r[1] - gr[1], qz = gr[2] - r[2];       // rig-local position of the rear sight tip (model is turned 180 deg about Y and shifted so the grip is the origin)
+      const depth = s.weapon === 'p50' ? 0.30 : 0.27;
+      const ax = -qx * sc, ay = -(qy * c - qz * sn) * sc - 0.012, az = -(qy * sn + qz * c) * sc - depth;
+      px = THREE.MathUtils.lerp(px, ax, k); py = THREE.MathUtils.lerp(py, ay, k); pz = THREE.MathUtils.lerp(pz, az + p.kickBack * kick * 0.5, k);
+      rx = THREE.MathUtils.lerp(rx, -slope + p.kickRot * kick * 0.5, k); ry = THREE.MathUtils.lerp(ry, 0, k); rz = THREE.MathUtils.lerp(rz, 0, k);
+    }
     this.rig.position.set(px, py, pz); this.rig.rotation.set(rx, ry, rz); this.rig.scale.setScalar(p.scale);
     // moving parts of the weapon itself
     if (this.magNode) {
@@ -346,7 +372,8 @@ export class Viewmodel {
       if (b.life <= 0) { b.mesh.visible = false; continue; }
       b.life -= dt; b.vel.y -= 5.5 * dt; b.mesh.position.addScaledVector(b.vel, dt); b.mesh.rotation.x += dt * 14;
     }
-    const vis = s.alive; this.rig.visible = vis;
+    const vis = s.alive && !(def.scoped && s.aim > 0.92);        // looking through the scope: the gun itself is not drawn
+    this.rig.visible = vis;
     this.handR.root.visible = this.handR.forearm.visible = this.handR.cuff.visible = vis;
     if (this.id !== 'knife') this.handL.root.visible = this.handL.forearm.visible = this.handL.cuff.visible = vis;
   }

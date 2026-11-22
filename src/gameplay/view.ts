@@ -45,6 +45,7 @@ export function emptyView(): ViewState {
 export function syncFromSim(sim: GameSim, v: ViewState, localId: number): void {
   v.time = sim.time; v.phase = sim.phase; v.phaseT = sim.phaseT; v.phaseElapsed = sim.phaseElapsed; v.round = sim.round; v.mode = sim.mode;
   v.score = sim.score; v.swapped = sim.swapped; v.bomb = sim.bomb; v.localId = localId; v.lastWinner = sim.lastWinner; v.matchWinnerSquad = sim.matchWinnerSquad; v.lossStreak = sim.lossStreak;
+  const alpha = sim.renderAlpha;
   for (const id of [...v.players.keys()]) if (!sim.players.has(id)) v.players.delete(id);
   for (const p of sim.players.values()) {
     let vp = v.players.get(p.id);
@@ -53,7 +54,11 @@ export function syncFromSim(sim: GameSim, v: ViewState, localId: number): void {
     }
     const w = p.slots[p.cur] ?? 'knife'; const a = p.ammo[w] ?? { mag: 0, reserve: 0 };
     vp.id = p.id; vp.name = p.name; vp.squad = p.squad; vp.team = p.team; vp.bot = p.bot; vp.alive = p.alive;
-    vp.x = p.m.x; vp.y = p.m.y; vp.z = p.m.z; vp.yaw = p.yaw; vp.pitch = p.pitch; vp.crouching = p.m.crouching; vp.onGround = p.m.onGround; vp.speed = p.speed;
+    // the sim ticks at a fixed 60 Hz but the screen does not: show the pose BETWEEN the last two ticks (otherwise motion steps unevenly and reads as judder / shake)
+    const dx = p.m.x - p.prev.x, dy = p.m.y - p.prev.y, dz = p.m.z - p.prev.z;
+    const k = p.alive && dx * dx + dz * dz < 4 && Math.abs(dy) < 1.5 ? alpha : 1;      // teleports (spawn) snap
+    let dyaw = p.yaw - p.prev.yaw; dyaw -= Math.round(dyaw / (Math.PI * 2)) * Math.PI * 2;
+    vp.x = p.prev.x + dx * k; vp.y = p.prev.y + dy * k; vp.z = p.prev.z + dz * k; vp.yaw = p.prev.yaw + dyaw * k; vp.pitch = p.prev.pitch + (p.pitch - p.prev.pitch) * k; vp.crouching = p.m.crouching; vp.onGround = p.m.onGround; vp.speed = p.speed;
     vp.hp = p.hp; vp.armor = p.armor; vp.helmet = p.helmet; vp.kit = p.kit; vp.money = p.money;
     vp.weapon = w; vp.slots = p.slots; vp.cur = p.cur; vp.mag = a.mag; vp.reserve = a.reserve; vp.reloading = p.reloadT > 0; vp.reloadT = p.reloadT; vp.equipT = p.equipT;
     vp.kills = p.kills; vp.deaths = p.deaths; vp.assists = p.assists; vp.score = p.score;

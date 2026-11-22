@@ -1,15 +1,15 @@
 # Release size report
 
-File: `release/hillfront.html`  ·  generated 2026-11-22T18:33:23.749Z
+File: `release/hillfront.html`  ·  generated 2026-11-22T19:54:45.546Z
 
-**Total: 2,533,838 bytes (2.42 MB)** against a budget of 12 MB (12,582,912 bytes): PASS
+**Total: 2,541,872 bytes (2.42 MB)** against a budget of 12 MB (12,582,912 bytes): PASS
 
 Gzip-compressed transfer size (if served with compression): 0.72 MB. Embedding in Google Sites counts the *uncompressed* HTML, so the gate uses the first number.
 
 | Category | Bytes | Size | Share |
 |---|---:|---:|---:|
-| Game code (three.js + game + UI, minified JS) | 852,650 | 833 KB | 33.7% |
-| 3D models (soldier, map kit, weapons) as base64 | 1,666,135 | 1627 KB | 65.8% |
+| Game code (three.js + game + UI, minified JS) | 860,684 | 841 KB | 33.9% |
+| 3D models (soldier, map kit, weapons) as base64 | 1,666,135 | 1627 KB | 65.5% |
 | CSS | 14,826 | 14 KB | 0.6% |
 | HTML shell / other | 227 | 0 KB | 0.0% |
 

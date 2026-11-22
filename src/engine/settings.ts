@@ -3,7 +3,7 @@ import type { QualityName } from './quality.ts';
 export interface Settings {
   sensitivity: number;      // multiplier on the base look speed
   invertY: boolean;
-  fov: number;              // horizontal-ish vertical fov in degrees (camera.fov)
+  fov: number;              // VERTICAL field of view in degrees (camera.fov). 66 = ~99 deg horizontal at 16:9. (The first release defaulted to 78 = ~115 deg horizontal: fisheye-wide, targets tiny.)
   volume: number;           // master 0..1
   musicVolume: number;
   quality: QualityName;
@@ -21,16 +21,16 @@ export interface Settings {
 
 export const DEFAULT_KEYS: Record<string, string> = {
   forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', jump: 'Space', crouch: 'KeyC', walk: 'ShiftLeft',
-  reload: 'KeyR', use: 'KeyE', buy: 'KeyB', scoreboard: 'Tab', slot1: 'Digit1', slot2: 'Digit2', slot3: 'Digit3', lastWeapon: 'KeyQ', inspect: 'KeyF', spectateNext: 'KeyV',
+  reload: 'KeyR', use: 'KeyE', buy: 'KeyB', scoreboard: 'Tab', slot1: 'Digit1', slot2: 'Digit2', slot3: 'Digit3', lastWeapon: 'KeyQ', inspect: 'KeyF', spectateNext: 'KeyV', aim: 'KeyZ',
 };
 
 export const KEY_LABELS: Record<string, string> = {
   forward: 'Move forward', back: 'Move back', left: 'Strafe left', right: 'Strafe right', jump: 'Jump', crouch: 'Crouch (hold)', walk: 'Walk (hold)',
-  reload: 'Reload', use: 'Use / plant / disarm', buy: 'Buy menu', scoreboard: 'Scoreboard (hold)', slot1: 'Primary weapon', slot2: 'Sidearm', slot3: 'Knife', lastWeapon: 'Previous weapon', inspect: 'Inspect weapon', spectateNext: 'Spectate next',
+  reload: 'Reload', use: 'Use / plant / disarm', buy: 'Buy menu', scoreboard: 'Scoreboard (hold)', slot1: 'Primary weapon', slot2: 'Sidearm', slot3: 'Knife', lastWeapon: 'Previous weapon', inspect: 'Inspect weapon', spectateNext: 'Spectate next', aim: 'Aim down sights (hold) — right mouse also works',
 };
 
 export const DEFAULT_SETTINGS: Settings = {
-  sensitivity: 1, invertY: false, fov: 78, volume: 0.7, musicVolume: 0.35, quality: 'medium', resolutionScale: 1, dynamicRes: true, showFps: false,
+  sensitivity: 1, invertY: false, fov: 66, volume: 0.7, musicVolume: 0.35, quality: 'medium', resolutionScale: 1, dynamicRes: true, showFps: false,
   crosshairColor: '#7dff9b', crosshairSize: 1, crosshairGap: 1, highContrastTeams: false, reduceMotion: false, name: '', keys: { ...DEFAULT_KEYS },
 };
 
@@ -48,6 +48,7 @@ export function loadSettings(): Settings {
   if (raw) {
     try {
       const p = JSON.parse(raw) as Partial<Settings>;
+      if (p.fov === 78) delete p.fov;      // the old default was too wide: anyone who never chose their own value gets the new one
       s = { ...s, ...p, keys: { ...DEFAULT_KEYS, ...(p.keys ?? {}) } };
     } catch { /* corrupt: fall back to defaults */ }
   }
@@ -58,7 +59,7 @@ export function loadSettings(): Settings {
 
 function clamp(v: number, a: number, b: number) { return Math.min(b, Math.max(a, Number.isFinite(v) ? v : a)); }
 export function sanitize(s: Settings): Settings {
-  s.sensitivity = clamp(s.sensitivity, 0.1, 5); s.fov = clamp(s.fov, 60, 110); s.volume = clamp(s.volume, 0, 1); s.musicVolume = clamp(s.musicVolume, 0, 1);
+  s.sensitivity = clamp(s.sensitivity, 0.1, 5); s.fov = clamp(s.fov, 50, 95); s.volume = clamp(s.volume, 0, 1); s.musicVolume = clamp(s.musicVolume, 0, 1);
   s.resolutionScale = clamp(s.resolutionScale, 0.4, 1); s.crosshairSize = clamp(s.crosshairSize, 0.4, 3); s.crosshairGap = clamp(s.crosshairGap, 0, 4);
   if (!['low', 'medium', 'high'].includes(s.quality)) s.quality = 'medium';
   s.name = String(s.name ?? '').replace(/[^\w \-.]/g, '').slice(0, 16);

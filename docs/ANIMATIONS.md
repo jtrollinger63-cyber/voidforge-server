@@ -27,6 +27,13 @@ Evidence: `docs/evidence/weapon-hold-before-after.jpg` (real captures from the Q
 - **QA:** `node tools/holdtest.cjs` (needs `npm run dev`) checks 8 weapon/team variants × 5 poses: roll, barrel yaw, support-hand-to-forend distance. 40/40 pass.
 - Known limits: the pistol clips hold the gun low (about −45° idle, −69° crouched) because that is how the kit animates sidearms; pistols and the knife are one-handed in third person; the left arm in the middle of a reload is the kit clip's, not IK.
 
+## The pack's weapons float apart — and how that is fixed (`src/weapons/fillers.ts`)
+Evidence: `docs/evidence/weapon-parts-before-after.jpg`.
+
+The CC0 Hill Town weapons are kit-bashed from separate chunky pieces **and ship without a lower receiver**: the pistol grip, trigger guard and magazine hang 3–6 cm below the upper receiver, the front sight post floats 2.5 cm above the barrel, the SMG has no rear receiver at all, the marksman rifle's scope floats 1.4 cm over its rail, and the knife's pommel rings sit behind the end of the handle core. I measured this on the untouched original download as well as the shipped GLB (`tools/weapon-connectivity.ts`: triangles are welded into pieces, pieces are joined when their closest vertex-to-triangle distance is < 5 mm), so it is how the asset is, not something the optimiser broke. In play it looked like parts detached from the gun.
+
+Fix: a small table of filler blocks per weapon (pistol-grip neck, lower receiver / magwell, front-sight base, scope mounts, SMG rear receiver, knife handle core), each ~3 mm overlapping its neighbours and coloured from the neighbouring kit material. Both the first-person model and the merged third-person model use the same table. `tests/weapons.test.ts` first proves the shipped GLB really is fragmented (so the fix is needed), then proves every weapon is **one connected object** with the blocks in, and that the hand grip points sit on solid geometry. The pistol was already one piece.
+
 ## First-person viewmodel — PROVISIONAL (`src/weapons/viewmodel.ts`)
 The CuiGames A5 / P50 / T12 animated viewmodels were **not obtained** (see ASSETS.md). Until they are, the first-person weapon is the CC0 world model rendered close-up in its own pass (cleared depth buffer, so it never clips into walls).
 Evidence: `docs/evidence/viewmodel-before-after.jpg` (QA viewer, same poses before/after) and `docs/evidence/ingame-first-person-hands.jpg` (the real game, rifle + pistol, idle + firing, software GL).

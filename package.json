@@ -20,7 +20,8 @@
     "e2e:play": "node tools/playtest.cjs",
     "e2e:flows": "node tools/flowtest.cjs",
     "e2e:net": "node tools/nettest.cjs",
-    "e2e:holds": "node tools/holdtest.cjs && node tools/vmtest.cjs"
+    "e2e:holds": "node tools/holdtest.cjs && node tools/vmtest.cjs",
+    "e2e:look": "node tools/looktest.cjs"
   },
   "dependencies": {
     "three": "0.187.0",

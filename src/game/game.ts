@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { createStage, type Stage } from '../engine/renderer.ts';
 import { buildHillfront, type MapDef } from '../map/hillfront.ts';
 import { buildMapView, type MapView } from '../map/mapview.ts';
-import { GameSim, RULES, emptyCmd, type Cmd, type Mode, type SimEvent } from '../gameplay/sim.ts';
+import { GameSim, RULES, AIM, emptyCmd, viewAngles, type Cmd, type Mode, type SimEvent } from '../gameplay/sim.ts';
 import { LocalSession, NetSession, type GameSession } from './session.ts';
 import type { NetClient } from '../network/client.ts';
 import { fillWithBots, makeBot, type Difficulty } from '../gameplay/bots.ts';
@@ -63,7 +63,12 @@ export class Game {
   private frameMs = 16; private fpsEma = 60;
   private lowT = 0; private highT = 0;
   private visibleEnemies = new Set<number>(); private visAcc = 0;
-  private shake = 0;
+  private shake = 0; private shakeT = 0;
+  /** 0..1 smoothed aim-down-sights amount, bob state, smoothed view punch (degrees) */
+  private aimK = 0; private aimWanted = false;
+  private bobAmp = 0; private bobPhase = 0;
+  private punchPs = 0; private punchYs = 0;
+  private lockHint: HTMLElement; private scopeEl: HTMLElement;
   private deviceObj: THREE.Object3D | null = null; private deviceLight: THREE.Mesh | null = null; private beepT = 0;
   private resultTimer = -1;
   private menuT = 0; private menuVista = 0; private menuFade: HTMLElement;
@@ -93,10 +98,19 @@ export class Game {
     this.menuFade = document.createElement('div');
     Object.assign(this.menuFade.style, { position: 'fixed', inset: '0', background: '#000', opacity: '0', transition: 'opacity .6s', pointerEvents: 'none', zIndex: '14' });
     document.body.appendChild(this.menuFade);
+    this.lockHint = document.createElement('div');
+    Object.assign(this.lockHint.style, { position: 'fixed', left: '50%', top: '70px', transform: 'translateX(-50%)', padding: '8px 14px', background: 'rgba(12,14,18,.78)', border: '1px solid rgba(255,255,255,.25)', borderRadius: '8px', color: '#fff', font: '600 13px system-ui, sans-serif', textAlign: 'center', maxWidth: '62vw', pointerEvents: 'none', zIndex: '13', display: 'none' });
+    document.body.appendChild(this.lockHint);
+    // scope reticle for the marksman rifle: black surround, clear circle, fine cross-hairs
+    this.scopeEl = document.createElement('div');
+    Object.assign(this.scopeEl.style, { position: 'fixed', inset: '0', pointerEvents: 'none', zIndex: '9', display: 'none', background: 'radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0, rgba(0,0,0,0) 30vh, rgba(0,0,0,.96) 30.6vh)' });
+    this.scopeEl.innerHTML = '<div style="position:absolute;left:50%;top:50%;width:61vh;height:1px;margin-left:-30.5vh;background:rgba(0,0,0,.85)"></div><div style="position:absolute;left:50%;top:50%;height:61vh;width:1px;margin-top:-30.5vh;background:rgba(0,0,0,.85)"></div><div style="position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-2.5px;border-radius:50%;background:#e33"></div>';
+    document.body.appendChild(this.scopeEl);
 
     // pointer lock <-> pause
     this.input.onLockChange = (locked) => {
-      if (!locked && this.state === 'playing' && !this.screens.open) this.pause();
+      // losing a lock we had (Esc / alt-tab) pauses; a browser that never grants one (embedded frames) must not pause the game forever
+      if (!locked && this.state === 'playing' && !this.screens.open && !this.input.lockFailed) this.pause();
     };
     this.input.onFirstClick = () => { sfx.unlock(); if (this.state === 'playing' && !this.input.locked && !this.screens.open) this.input.requestLock(); };
     addEventListener('keydown', (e) => this.onKey(e));
@@ -192,7 +206,6 @@ export class Game {
     this.input.enabled = true; this.input.clearAll();
     if (this.session) { this.session.sync(); const me = this.view.players.get(this.localId); if (me) { this.yaw = me.yaw; this.pitch = 0; this.eyeY = me.y + eyeHeight({ crouching: me.crouching } as never); } }
     this.input.requestLock();
-    if (!this.input.locked) setTimeout(() => { if (!this.input.locked && this.input.lockFailed) toast('Mouse capture unavailable here: use the arrow keys to turn, or hold the right mouse button and drag.', 6000); }, 600);
   }
 
   stopSession() {
@@ -271,7 +284,7 @@ export class Game {
     if (session) {
       const live = this.state !== 'result' && this.state !== 'paused';
       let f: InputFrame | null = null;
-      if (live) { f = this.input.enabled ? this.input.poll(dt) : null; this.control(dt, f); } else this.input.poll(dt);
+      if (live) { f = this.input.enabled ? this.input.poll(dt, this.lookScale()) : null; this.control(dt, f); } else this.input.poll(dt);
       // offline practice pauses with the menu; an online match keeps running (and keeps streaming neutral input)
       if (!live && this.online) session.setCmd(emptyCmd());
       session.advance(dt, !live && !this.online);
@@ -307,6 +320,9 @@ export class Game {
     if (f && (!blocked || this.screens.open === 'buy')) {
       cmd.fwd = f.fwd; cmd.strafe = f.strafe; cmd.jump = f.jump; cmd.crouch = f.crouch; cmd.walk = f.walk;
       cmd.fire = f.fire && !blocked; cmd.reload = f.reload; cmd.use = f.use;
+      // aim-down-sights is not available while reloading / equipping / planting, and not with the knife
+      this.aimWanted = f.aim && !blocked && WEAPONS[p.weapon].slot !== 'melee' && !p.reloading && p.equipT <= 0 && p.using === 'none';
+      cmd.aim = this.aimWanted;
       // weapon selection
       let slot = f.slot;
       if (f.wheel !== 0) { const order = [0, 1, 2].filter((i) => p.slots[i]); const idx = order.indexOf(p.cur); slot = order[(idx + (f.wheel > 0 ? 1 : -1) + order.length) % order.length]!; }
@@ -314,6 +330,7 @@ export class Game {
       if (slot >= 0 && p.slots[slot] && slot !== p.cur) { this.prevCur = p.cur; cmd.slot = slot; }
       if (f.inspect) this.vm.inspect();
     }
+    if (!f || blocked) this.aimWanted = false;
     cmd.yaw = this.yaw; cmd.pitch = this.pitch;
     session.setCmd(cmd);
     void dt;
@@ -356,7 +373,6 @@ export class Game {
             // viewmodel muzzle -> world
             const cam = this.stage.camera; const m = this.tmp.copy(this.vm.muzzleVm).applyMatrix4(cam.matrixWorld);
             sx = m.x; sy = m.y; sz = m.z;
-            this.shake = Math.min(1, this.shake + WEAPONS[e.w].kick * 0.07);
           } else {
             const s = this.soldiers.get(e.id); if (s) { s.flash(); const mw = s.muzzleWorld(this.tmp); sx = mw.x; sy = mw.y; sz = mw.z; }
           }
@@ -372,7 +388,7 @@ export class Game {
           const victim = pl(e.v);
           if (e.a === lid && e.v !== lid) { this.hud.hitMarker(e.killed ? 'kill' : e.head ? 'head' : 'body'); sfx.hitMarker(e.head, e.killed); }
           if (e.v === lid) {
-            sfx.hurt(e.dmg > 25); this.shake = Math.min(1, this.shake + e.dmg * 0.012);
+            sfx.hurt(e.dmg > 25); this.shake = Math.min(1, this.shake + Math.min(0.5, e.dmg * 0.01));
             const att = e.a >= 0 ? pl(e.a) : null;
             if (att && victim) {
               const ang = Math.atan2(-(att.x - victim.x), -(att.z - victim.z)); // world heading to attacker
@@ -471,12 +487,22 @@ export class Game {
     }
   }
 
+  // ------------------------------------------------------------------ aim down sights
+  /** current magnification of the camera (1 = hip) */
+  private zoomNow(): number {
+    const me = this.view.players.get(this.localId); if (!me || !me.alive) return 1;
+    return 1 + (WEAPONS[me.weapon].zoom - 1) * this.aimK;
+  }
+  /** mouse-look scale: turning slows in proportion to the zoom so a scoped crosshair is as controllable as a hip one */
+  private lookScale(): number { return 1 / this.zoomNow(); }
+
   // ------------------------------------------------------------------ presentation
   private spreadDeg(me: ViewPlayer): number {
     const d = WEAPONS[me.weapon]; if (d.slot === 'melee') return 0;
     const mf = Math.min(1, me.speed / PLAYER.runSpeed);
     let s = d.spreadBase + d.spreadMove * mf * mf + (me.onGround ? 0 : d.spreadJump); if (me.crouching) s *= d.crouchMul;
-    return s * (1 + Math.min(me.spray, 12) * 0.035);
+    s *= 1 + Math.min(me.spray, 12) * 0.035;
+    return this.aimK > 0.01 ? s * (1 - (1 - AIM.spreadMul) * this.aimK) : s;
   }
 
   private updatePresentation(dt: number) {
@@ -498,18 +524,47 @@ export class Game {
       const target = focus.y + eye;
       this.eyeY += (target - this.eyeY) * Math.min(1, dt * 14); if (Math.abs(target - this.eyeY) > 1.2) this.eyeY = target;
       let yaw = spec ? spec.yaw : this.yaw, pitch = spec ? spec.pitch : this.pitch;
-      if (focus === me) { yaw += me.punchY * Math.PI / 180 * -1; pitch += me.punchP * Math.PI / 180; }
+      if (focus === me) {
+        // the sim's view punch arrives in 60 Hz steps (one per shot): ease the camera toward it so each shot is a kick, not a jolt
+        const kp = 1 - Math.exp(-dt / 0.035);
+        this.punchPs += (me.punchP - this.punchPs) * kp; this.punchYs += (me.punchY - this.punchYs) * kp;
+        const va = viewAngles(yaw, pitch, this.punchYs, this.punchPs);       // same function the sim aims bullets with => crosshair = where shots go
+        yaw = va.yaw; pitch = va.pitch;
+      }
       this.camPos.set(focus.x, this.eyeY, focus.z);
-      const bob = !s.reduceMotion && focus.onGround ? Math.sin(performance.now() * 0.0125) * 0.012 * Math.min(1, focus.speed / 5) : 0;
+      // head bob: phase advances with distance travelled, amplitude eases in/out (no sudden jumps), kept very small
+      const bobTarget = !s.reduceMotion && focus.onGround && !focus.crouching ? Math.min(1, focus.speed / 5.2) : 0;
+      this.bobAmp += (bobTarget - this.bobAmp) * (1 - Math.exp(-dt / 0.12));
+      this.bobPhase += dt * focus.speed * 1.9;
+      const bob = Math.sin(this.bobPhase) * 0.0055 * this.bobAmp * (1 - 0.7 * this.aimK);
       cam.position.set(this.camPos.x, this.camPos.y + bob, this.camPos.z);
       cam.rotation.order = 'YXZ';
-      this.shake = Math.max(0, this.shake - dt * 3.2);
-      const sh = s.reduceMotion ? 0 : this.shake;
-      cam.rotation.set(pitch + (Math.random() - 0.5) * sh * 0.03, yaw + (Math.random() - 0.5) * sh * 0.03, (Math.random() - 0.5) * sh * 0.02);
+      // shake (explosions, taking damage): smooth low-frequency motion, small, decays fast — never random per-frame noise
+      this.shake = Math.max(0, this.shake - dt * 2.6);
+      this.shakeT += dt;
+      const sh = s.reduceMotion ? 0 : this.shake * this.shake;
+      const t = this.shakeT;
+      cam.rotation.set(pitch + Math.sin(t * 23.0) * sh * 0.012, yaw + Math.sin(t * 19.0 + 1.7) * sh * 0.012, Math.sin(t * 15.0 + 0.6) * sh * 0.01);
     } else if (me && !me.alive) {
       // death cam: slow orbit over the spot we fell
       const t = performance.now() * 0.0002;
       cam.position.set(me.x + Math.cos(t) * 3.2, me.y + 2.4, me.z + Math.sin(t) * 3.2); cam.lookAt(me.x, me.y + 0.6, me.z);
+    }
+    // aim-down-sights: ease toward the target, then zoom the camera (viewmodel keeps its own fixed FOV)
+    const aimGoal = this.aimWanted && me && me.alive && !spec ? 1 : 0;
+    this.aimK += (aimGoal - this.aimK) * (1 - Math.exp(-dt / (aimGoal ? 0.07 : 0.05)));
+    if (Math.abs(this.aimK - aimGoal) < 0.002) this.aimK = aimGoal;
+    {
+      const z = this.zoomNow(); const f0 = s.fov, fz = (2 * Math.atan(Math.tan(f0 * Math.PI / 360) / z)) * 180 / Math.PI;
+      if (Math.abs(cam.fov - fz) > 0.01) { cam.fov = fz; cam.updateProjectionMatrix(); }
+      const sc = me && me.alive && !spec && WEAPONS[me.weapon].scoped && this.aimK > 0.92;
+      this.scopeEl.style.display = sc ? 'block' : 'none';
+    }
+    // pointer-lock hint (shown whenever mouse capture is not active during play)
+    {
+      const show = this.state === 'playing' && !this.input.locked && !this.screens.open;
+      this.lockHint.style.display = show ? 'block' : 'none';
+      if (show) this.lockHint.textContent = this.input.steerWaiting ? 'Mouse capture is blocked in this window. Put the cursor in the middle of the screen, then nudge it toward an edge to turn (arrow keys also turn). Open the game in its own browser tab for full mouse-look.' : this.input.steering ? 'Mouse capture is blocked in this window: the cursor steers the view (middle = still). Open the game in its own browser tab for full mouse-look.' : 'Click the game to capture the mouse and aim';
     }
     this.stage.followShadow(cam.position.x, 0, cam.position.z);
     cam.updateMatrixWorld();
@@ -519,7 +574,7 @@ export class Game {
     if (me && showVm) {
       const team = me.team as 0 | 1;
       if (this.lastVmWeapon !== me.weapon || this.lastVmTeam !== team) { this.vm.setWeapon(me.weapon, team, s.fov); this.lastVmWeapon = me.weapon; this.lastVmTeam = team; this.vm.resize(innerWidth / innerHeight, s.fov); }
-      this.vm.update(dt, { alive: me.alive, weapon: me.weapon, speed: me.speed, onGround: me.onGround, crouching: me.crouching, firedAt: me.firedAt, reloadAt: me.reloadAt, reloading: me.reloading, reloadT: me.reloadT, equipT: me.equipT, time: V.time, turnX: 0, turnY: 0, reduceMotion: s.reduceMotion, dt });
+      this.vm.update(dt, { alive: me.alive, weapon: me.weapon, speed: me.speed, onGround: me.onGround, crouching: me.crouching, firedAt: me.firedAt, reloadAt: me.reloadAt, reloading: me.reloading, reloadT: me.reloadT, equipT: me.equipT, time: V.time, turnX: 0, turnY: 0, reduceMotion: s.reduceMotion, dt, aim: this.aimK });
     }
 
     // ---- soldiers

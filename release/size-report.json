@@ -1,10 +1,10 @@
 {
  "file": "release/hillfront.html",
- "totalBytes": 2533838,
- "gzipBytes": 755281,
+ "totalBytes": 2541872,
+ "gzipBytes": 758047,
  "maxBytes": 12582912,
  "categories": {
-  "Game code (three.js + game + UI, minified JS)": 852650,
+  "Game code (three.js + game + UI, minified JS)": 860684,
   "3D models (soldier, map kit, weapons) as base64": 1666135,
   "CSS": 14826,
   "HTML shell / other": 227

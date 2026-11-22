@@ -3,7 +3,7 @@
  *  - LocalSession: the in-browser GameSim (offline practice vs bots, no server needed)
  *  - NetSession:   a remote authoritative match (server snapshots + client-side prediction of the local player only)
  */
-import { GameSim, emptyCmd, RULES, type Cmd, type SimEvent } from '../gameplay/sim.ts';
+import { GameSim, emptyCmd, RULES, AIM, type Cmd, type SimEvent } from '../gameplay/sim.ts';
 import { syncFromSim, emptyView, type ViewState, type ViewPlayer } from '../gameplay/view.ts';
 import { stepMovement, newMoveState, type MoveState, type MoveInput } from '../gameplay/movement.ts';
 import { WEAPONS, type WeaponId } from '../gameplay/weapons.ts';
@@ -49,7 +49,7 @@ export class LocalSession implements GameSession {
 const STEP = 1 / RULES.tickRate;
 const INTERP = 0.1;
 
-const toWire = (c: Cmd): WireCmd => ({ fwd: c.fwd, strafe: c.strafe, jump: c.jump, crouch: c.crouch, walk: c.walk, yaw: c.yaw, pitch: c.pitch, fire: c.fire, reload: c.reload, use: c.use, slot: c.slot });
+const toWire = (c: Cmd): WireCmd => ({ fwd: c.fwd, strafe: c.strafe, jump: c.jump, crouch: c.crouch, walk: c.walk, yaw: c.yaw, pitch: c.pitch, fire: c.fire, reload: c.reload, use: c.use, slot: c.slot, aim: c.aim });
 
 interface TimedSnap { s: Snapshot; recv: number; }
 
@@ -61,6 +61,9 @@ export class NetSession implements GameSession {
   private seq = 0;
   private pending: { seq: number; cmd: WireCmd }[] = [];
   private pred: MoveState = newMoveState(0, 0.1, 0);
+  private prevPred = { x: 0, y: 0.1, z: 0 };
+  /** reconciliation error still to be absorbed (metres); decays so snapshot corrections glide instead of snapping */
+  private corr = { x: 0, y: 0, z: 0 };
   private predValid = false;
   private acc = 0;
   private latest: Cmd = emptyCmd();
@@ -88,6 +91,7 @@ export class NetSession implements GameSession {
 
   // ---------------------------------------------------------------- fixed 60 Hz command stream + prediction
   advance(dt: number, _paused: boolean) {
+    const kc = Math.exp(-dt / 0.12); this.corr.x *= kc; this.corr.y *= kc; this.corr.z *= kc;
     this.acc += Math.min(dt, 0.2);
     let n = 0;
     while (this.acc >= STEP && n < 6) { this.acc -= STEP; n++; this.fixedStep(); }
@@ -103,13 +107,14 @@ export class NetSession implements GameSession {
     this.latest.reload = false; this.latest.slot = -1;
     if (!this.alive || !this.predValid) return;
     this.pending.push({ seq, cmd: wire }); if (this.pending.length > 120) this.pending.shift();
+    this.prevPred.x = this.pred.x; this.prevPred.y = this.pred.y; this.prevPred.z = this.pred.z;
     this.predictStep(wire);
   }
 
   private predictStep(c: WireCmd) {
     const blocked = this.frozen || this.busy;
     const inp: MoveInput = { fwd: blocked ? 0 : c.fwd, strafe: blocked ? 0 : c.strafe, jump: !blocked && c.jump, crouch: c.crouch, walk: c.walk, yaw: c.yaw };
-    stepMovement(this.world, this.pred, inp, STEP, WEAPONS[this.localWeapon].moveMul);
+    stepMovement(this.world, this.pred, inp, STEP, WEAPONS[this.localWeapon].moveMul * (c.aim && WEAPONS[this.localWeapon].slot !== 'melee' ? AIM.moveMul : 1));
   }
 
   // ---------------------------------------------------------------- snapshots
@@ -123,15 +128,21 @@ export class NetSession implements GameSession {
     if (!me) return;
     this.alive = (me.f & 1) !== 0; this.frozen = s.phase === 'freeze'; this.busy = (me.f & 96) !== 0;
     this.localWeapon = (me.w as WeaponId) in WEAPONS ? (me.w as WeaponId) : 'p50';
-    if (!this.alive || !s.me) { this.pred = newMoveState(me.x, me.y, me.z); this.predValid = this.alive; this.pending = []; return; }
+    if (!this.alive || !s.me) { this.pred = newMoveState(me.x, me.y, me.z); this.prevPred = { x: me.x, y: me.y, z: me.z }; this.corr = { x: 0, y: 0, z: 0 }; this.predValid = this.alive; this.pending = []; return; }
     // reconcile: authoritative state, then replay every command the server has not applied yet
-    const before = this.predValid ? { x: this.pred.x, z: this.pred.z } : null;
+    const before = this.predValid ? { x: this.pred.x, y: this.pred.y, z: this.pred.z } : null;
     const m = newMoveState(me.x, me.y, me.z);
     m.vx = s.me.vx; m.vy = s.me.vy; m.vz = s.me.vz; m.onGround = s.me.ground === 1; m.crouching = (me.f & 2) !== 0; m.jumpCooldown = s.me.jc;
     this.pred = m; this.predValid = true;
     this.pending = this.pending.filter((p) => p.seq > s.ack);
     for (const p of this.pending) this.predictStep(p.cmd);
-    if (before) this.lastCorrection = Math.hypot(this.pred.x - before.x, this.pred.z - before.z);
+    if (before) {
+      const ex = before.x - this.pred.x, ey = before.y - this.pred.y, ez = before.z - this.pred.z;
+      this.lastCorrection = Math.hypot(-ex, -ez);
+      // small errors are absorbed visually over ~0.12 s; a big one (teleport / respawn) snaps
+      if (Math.hypot(ex, ey, ez) < 1.2) { this.corr.x += ex; this.corr.y += ey; this.corr.z += ez; } else this.corr = { x: 0, y: 0, z: 0 };
+    } else this.corr = { x: 0, y: 0, z: 0 };
+    this.prevPred = { x: this.pred.x, y: this.pred.y, z: this.pred.z };
   }
 
   // ---------------------------------------------------------------- view construction
@@ -160,7 +171,7 @@ export class NetSession implements GameSession {
       this.myNames.set(pb.i, pb.n);
       if (pb.i === this.localId) {
         // the local player is predicted, not interpolated
-        if (this.predValid && (pb.f & 1)) { vp.x = this.pred.x; vp.y = this.pred.y; vp.z = this.pred.z; vp.speed = Math.hypot(this.pred.vx, this.pred.vz); vp.onGround = this.pred.onGround; vp.crouching = this.pred.crouching; }
+        if (this.predValid && (pb.f & 1)) { const al = Math.min(1, this.acc / STEP); vp.x = this.prevPred.x + (this.pred.x - this.prevPred.x) * al + this.corr.x; vp.y = this.prevPred.y + (this.pred.y - this.prevPred.y) * al + this.corr.y; vp.z = this.prevPred.z + (this.pred.z - this.prevPred.z) * al + this.corr.z; vp.speed = Math.hypot(this.pred.vx, this.pred.vz); vp.onGround = this.pred.onGround; vp.crouching = this.pred.crouching; }
         const me = s.me;
         if (me) {
           vp.money = me.money; vp.mag = me.mag; vp.reserve = me.res; vp.slots = me.slots as (WeaponId | null)[]; vp.reloadT = me.reloadT; vp.equipT = me.equipT; vp.useT = me.useT; vp.spray = me.spray; vp.punchP = me.punchP; vp.punchY = me.punchY;

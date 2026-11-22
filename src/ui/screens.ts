@@ -144,12 +144,12 @@ export class Screens {
       let body: HTMLElement;
       if (tab === 'controls') {
         body = h('div', { class: 'col', style: { gap: '14px' } },
-          h('div', { class: 'row' }, slider('Mouse sensitivity', 'sensitivity', 0.2, 3, 0.05), slider('Field of view', 'fov', 60, 105, 1, (v) => `${v.toFixed(0)}°`)),
+          h('div', { class: 'row' }, slider('Mouse sensitivity', 'sensitivity', 0.2, 3, 0.05), slider('Field of view (vertical)', 'fov', 50, 95, 1, (v) => `${v.toFixed(0)}°`)),
           check('Invert vertical look', 'invertY'),
           h('h3', {}, 'Key bindings (click, then press a key)'),
           h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: '6px 18px' } }, ...Object.keys(DEFAULT_KEYS).map((a) => h('div', { class: 'row', style: { justifyContent: 'space-between' } }, h('span', { class: 'dim', style: { fontSize: '13px' } }, KEY_LABELS[a] ?? a),
             h('button', { class: 'btn', style: { minWidth: '92px', padding: '5px 10px' }, onClick: () => { rebinding = a; render(); } }, rebinding === a ? 'Press a key…' : keyLabel(s.keys[a]!))))),
-          h('div', { class: 'dim', style: { fontSize: '12px' } }, 'Arrow keys always turn the camera, which also works where the browser blocks mouse capture. Hold right mouse button to look around without capture.'),
+          h('div', { class: 'dim', style: { fontSize: '12px' } }, 'Right mouse button (or the Aim key) aims down sights: tighter shots, zoom, slower turning and movement. Arrow keys always turn the camera. Where the browser blocks mouse capture (embedded windows) the cursor steers instead: centre it, then nudge it toward an edge.'),
           h('button', { class: 'btn', style: { alignSelf: 'flex-start' }, onClick: () => { set({ keys: { ...DEFAULT_KEYS } }); render(); } }, 'Reset keys'));
       } else if (tab === 'graphics') {
         body = h('div', { class: 'col', style: { gap: '14px' } },
