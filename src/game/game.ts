@@ -13,7 +13,7 @@ import { fillWithBots, makeBot, type Difficulty } from '../gameplay/bots.ts';
 import { emptyView, syncFromSim, type ViewState, type ViewPlayer } from '../gameplay/view.ts';
 import { WEAPONS, BUY_ITEMS, type WeaponId } from '../gameplay/weapons.ts';
 import { eyeHeight, PLAYER } from '../gameplay/movement.ts';
-import { Soldier, loadSoldierAssets, type SoldierAssets, type SoldierViewState } from '../character/soldier.ts';
+import { Soldier, loadSoldierAssets, setSoldierShadowMode, type SoldierAssets, type SoldierViewState } from '../character/soldier.ts';
 import { teamMaterials } from '../character/materials.ts';
 import { Viewmodel } from '../weapons/viewmodel.ts';
 import { Effects } from '../engine/effects.ts';
@@ -83,6 +83,7 @@ export class Game {
   private constructor(stage: Stage, map: MapDef, mapView: MapView, assets: SoldierAssets, canvas: HTMLCanvasElement) {
     this.stage = stage; this.map = map; this.mapView = mapView; this.assets = assets;
     stage.scene.add(mapView.group); stage.scene.add(this.soldierGroup);
+    stage.staticBounds = mapView.bounds; stage.refreshStaticShadow();
     this.fx = new Effects(); stage.scene.add(this.fx.group);
     this.vm = new Viewmodel(assets.weapons);
     this.hud = new Hud(document.body, map);
@@ -130,6 +131,7 @@ export class Game {
   // ------------------------------------------------------------------ settings / resize
   private applySettings(s: Settings) {
     if (this.stage.quality.name !== s.quality) this.stage.setQuality(s.quality);
+    setSoldierShadowMode(this.stage.quality.shadows); for (const sd of this.soldiers.values()) sd.applyShadowMode(this.stage.quality.shadows);
     this.stage.dynamicScale = Math.min(this.stage.dynamicScale, s.resolutionScale); if (!s.dynamicRes) this.stage.dynamicScale = s.resolutionScale;
     this.stage.resize();
     this.fx.maxParticles = Math.min(160, QUALITY[s.quality].particles * 2);

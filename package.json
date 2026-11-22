@@ -6,10 +6,20 @@
   "description": "Hillfront - original CS-style round-based browser team shooter (Three.js + Node authoritative server)",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "server": "tsx server/index.ts",
+    "start": "node tools/dev-all.cjs",
     "typecheck": "tsc --noEmit",
-    "inspect:glb": "tsx tools/inspect-glb.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "assets:fetch": "tsx tools/fetch-assets.ts",
+    "assets:build": "tsx tools/build-assets.ts",
+    "assets:import": "tsx tools/import-inbox.ts",
+    "build": "tsc --noEmit && vite build",
+    "build:single": "vite build -c vite.single.config.ts && tsx tools/pack-single.ts",
+    "release": "npm run assets:build && npm run build:single && npm run size",
+    "size": "tsx tools/check-size.ts --max-mb 12",
+    "e2e:play": "node tools/playtest.cjs",
+    "e2e:flows": "node tools/flowtest.cjs",
+    "e2e:net": "node tools/nettest.cjs"
   },
   "dependencies": {
     "three": "0.187.0",
@@ -26,6 +36,7 @@
     "tsx": "4.23.15",
     "typescript": "7.0.2",
     "vite": "8.3.8",
+    "vite-plugin-singlefile": "2.3.4",
     "vitest": "5.1.1"
   }
 }

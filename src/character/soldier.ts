@@ -10,7 +10,8 @@
  */
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { loadGLB } from '../assets/loader.ts';
+import { loadGLB, floatGeometry } from '../assets/loader.ts';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { GripSet, WeaponId } from '../gameplay/weapons.ts';
 import { WEAPONS } from '../gameplay/weapons.ts';
 
@@ -40,6 +41,43 @@ export function loadSoldierAssets(): Promise<SoldierAssets> {
 function splitClip(clip: THREE.AnimationClip, upper: boolean): THREE.AnimationClip {
   const tracks = clip.tracks.filter((t) => UPPER.has(t.name.split('.')[0]!) === upper);
   return new THREE.AnimationClip(`${clip.name}@${upper ? 'U' : 'L'}`, clip.duration, tracks);
+}
+
+export type ShadowMode = 'off' | 'static' | 'dynamic';
+let SHADOW_MODE: ShadowMode = 'static';
+export function setSoldierShadowMode(m: ShadowMode) { SHADOW_MODE = m; }
+
+/** all of a world weapon's sub-meshes baked into ONE geometry with vertex colours = 1 draw call per soldier weapon */
+const weaponCache = new Map<string, { geo: THREE.BufferGeometry; box: THREE.Box3 }>();
+let weaponMat: THREE.MeshStandardMaterial | null = null;
+function worldWeapon(src: THREE.Object3D, key: string): { geo: THREE.BufferGeometry; box: THREE.Box3 } {
+  let c = weaponCache.get(key); if (c) return c;
+  src.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(src.matrixWorld).invert();
+  const parts: THREE.BufferGeometry[] = [];
+  src.traverse((o) => {
+    const m = o as THREE.Mesh; if (!m.isMesh) return;
+    const g = floatGeometry(m.geometry); g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld));
+    const mat = m.material as THREE.MeshStandardMaterial; const col = mat.color.clone();
+    if (mat.metalness > 0.5) col.multiplyScalar(0.62).lerp(new THREE.Color(0.32, 0.34, 0.36), 0.35);   // bare metal reads as gunmetal without an env-map-dependent metal shader
+    const n = g.attributes.position!.count; const cols = new Float32Array(n * 3); for (let i = 0; i < n; i++) { cols[i * 3] = col.r; cols[i * 3 + 1] = col.g; cols[i * 3 + 2] = col.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(cols, 3)); g.deleteAttribute('uv'); parts.push(g);
+  });
+  const geo = mergeGeometries(parts, false)!; for (const p of parts) p.dispose();
+  geo.computeBoundingBox();
+  c = { geo, box: geo.boundingBox!.clone() }; weaponCache.set(key, c);
+  return c;
+}
+let blobGeo: THREE.PlaneGeometry | null = null; let blobMat: THREE.MeshBasicMaterial | null = null;
+function blobMesh(): THREE.Mesh {
+  if (!blobGeo) {
+    blobGeo = new THREE.PlaneGeometry(1.15, 1.15); blobGeo.rotateX(-Math.PI / 2);
+    const cv = document.createElement('canvas'); cv.width = cv.height = 64; const g = cv.getContext('2d')!;
+    const gr = g.createRadialGradient(32, 32, 2, 32, 32, 31); gr.addColorStop(0, 'rgba(0,0,0,0.5)'); gr.addColorStop(0.55, 'rgba(0,0,0,0.28)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+    blobMat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, fog: false });
+  }
+  const m = new THREE.Mesh(blobGeo, blobMat!); m.position.y = 0.025; m.renderOrder = 1; m.frustumCulled = false; return m;
 }
 
 export interface SoldierViewState {
@@ -86,6 +124,8 @@ export class Soldier {
   private pitchSm = 0;
   private muzzle = new THREE.Object3D();
   private fadeWork = 0;
+  private blob: THREE.Mesh | null = null;
+  private shadowMode: ShadowMode = 'static';
   private flashObj: THREE.Group | null = null;
   private flashT = 0;
   private static flashMat: THREE.MeshBasicMaterial | null = null;
@@ -97,8 +137,10 @@ export class Soldier {
     this.root.traverse((o) => {
       this.bones.set(o.name, o);
       const sm = o as THREE.SkinnedMesh;
-      if (sm.isSkinnedMesh) { sm.frustumCulled = false; sm.castShadow = true; sm.receiveShadow = false; this.meshes.push(sm); }
+      if (sm.isSkinnedMesh) { sm.frustumCulled = false; this.meshes.push(sm); }
     });
+    this.blob = blobMesh(); this.root.add(this.blob);
+    this.applyShadowMode(SHADOW_MODE);
     this.mixer = new THREE.AnimationMixer(this.root);
     const sock = this.bones.get('Socket_Hand_R');
     sock?.add(this.muzzle);
@@ -129,6 +171,14 @@ export class Soldier {
     return o;
   }
 
+  /** off: blob only; static: map shadow is baked, characters get blobs + receive shading; dynamic: real shadows */
+  applyShadowMode(m: ShadowMode) {
+    this.shadowMode = m;
+    for (const sm of this.meshes) { sm.castShadow = m === 'dynamic'; sm.receiveShadow = m !== 'off'; }
+    this.weaponNode?.traverse((o) => { const x = o as THREE.Mesh; if (x.isMesh) { x.castShadow = m === 'dynamic'; } });
+    if (this.blob) this.blob.visible = m !== 'dynamic';
+  }
+
   setTeamMaterials(mats: THREE.Material[] | null, team: number) {
     if (this.team === team || !mats) return;
     this.team = team;
@@ -148,23 +198,23 @@ export class Soldier {
     const sock = this.bones.get('Socket_Hand_R');
     if (!src || !sock) { this.weaponNode = null; return; }
     const g = GRIP[name] ?? { yaw: Math.PI / 2, gx: 0, gy: 0.1, gz: -0.1, scale: 1 };
+    const ww = worldWeapon(src, name);
+    if (!weaponMat) weaponMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.58, metalness: 0.35, envMapIntensity: 0.7 });
     const holder = new THREE.Group();
-    const w = src.clone(true);
+    const w = new THREE.Mesh(ww.geo, weaponMat); w.frustumCulled = false; w.castShadow = this.shadowMode === 'dynamic';
     w.position.set(-g.gx, -g.gy, -g.gz);
     holder.add(w);
     holder.rotation.y = g.yaw; holder.scale.setScalar(g.scale);
-    w.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = true; m.frustumCulled = false; } });
     sock.add(holder);
     this.weaponNode = holder;
-    // muzzle flash sprite at the barrel tip (model +Z is the muzzle; bounds measured once per weapon)
+    // muzzle flash sprite at the barrel tip (model +Z is the muzzle)
     if (!Soldier.flashMat) {
       Soldier.flashMat = new THREE.MeshBasicMaterial({ color: 0xffd48a, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
       Soldier.flashGeo = new THREE.PlaneGeometry(0.2, 0.2);
     }
-    const box = new THREE.Box3().setFromObject(src);
     this.flashObj = new THREE.Group();
     for (let i = 0; i < 2; i++) { const q = new THREE.Mesh(Soldier.flashGeo!, Soldier.flashMat!); q.rotation.z = i * Math.PI / 4; this.flashObj.add(q); }
-    this.flashObj.position.set(0, Math.min(box.max.y * 0.68, 0.22), box.max.z + 0.07);
+    this.flashObj.position.set(0, Math.min(ww.box.max.y * 0.68, 0.22), ww.box.max.z + 0.07);
     this.flashObj.visible = false; w.add(this.flashObj);
   }
 

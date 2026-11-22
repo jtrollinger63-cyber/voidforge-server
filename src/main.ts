@@ -9,9 +9,12 @@ window.__hf = state;
 
 async function boot() {
   const viewer = params.get('viewer');
-  if (viewer === 'soldier') { (await import('./dev/soldierviewer.ts')).runSoldierViewer(params, state); return; }
-  if (viewer === 'atlas') { (await import('./dev/atlasviewer.ts')).runAtlasViewer(state); return; }
-  if (viewer === 'map') { (await import('./dev/mapviewer.ts')).runMapViewer(params, state); return; }
+  // QA viewers exist only in dev builds: they are tree-shaken out of the release HTML
+  if (import.meta.env.DEV && viewer) {
+    if (viewer === 'soldier') { (await import('./dev/soldierviewer.ts')).runSoldierViewer(params, state); return; }
+    if (viewer === 'atlas') { (await import('./dev/atlasviewer.ts')).runAtlasViewer(state); return; }
+    if (viewer === 'map') { (await import('./dev/mapviewer.ts')).runMapViewer(params, state); return; }
+  }
 
   const { Game } = await import('./game/game.ts');
   const { createLoading, createMenu } = await import('./ui/menu.ts');

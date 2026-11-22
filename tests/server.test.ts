@@ -221,6 +221,51 @@ describe('launching a match: whole party lands in ONE authoritative match', () =
   });
 });
 
+describe('after a match: the party returns and can queue again', () => {
+  it('match end sends everyone back to the party lobby; the leader launches a second match for the same group', async () => {
+    const L = await Client.connect('RetL'), M = await Client.connect('RetM');
+    L.send({ t: 'party.invite', target: M.id }); const i = await M.next('party.invite'); M.send({ t: 'party.respondInvite', inviteId: i.inviteId, accept: true });
+    await partyOf(L, (p) => p.members.length === 2);
+    M.send({ t: 'party.ready', ready: true }); await partyOf(L, (p) => p.members.every((m: any) => m.ready));
+    L.send({ t: 'party.settings', settings: { mode: 'elimination', visibility: 'private', fillBots: true, difficulty: 'easy' } });
+    await partyOf(L, (p) => p.settings.mode === 'elimination'); M.send({ t: 'party.ready', ready: true }); await partyOf(L, (p) => p.members.every((m: any) => m.ready));
+    L.send({ t: 'party.start' });
+    const [a1, b1] = await Promise.all([L.next('match.start'), M.next('match.start')]);
+    expect(a1.matchId).toBe(b1.matchId);
+
+    // fast-forward the authoritative sim to its natural end state
+    const run = srv.hub.matches.get(a1.matchId)!; run.sim.phase = 'matchEnd'; run.sim.phaseT = 0; run.sim.matchWinnerSquad = 0;
+    const [e1, e2] = await Promise.all([L.next('match.end'), M.next('match.end')]);
+    expect(e1.matchId).toBe(a1.matchId); expect(e2.winnerSquad).toBe(0);
+    const back = await partyOf(L, (p) => p.state === 'lobby' && p.members.length === 2);
+    expect(back.members.every((m: any) => m.status === 'party')).toBe(true);
+    expect(srv.hub.matches.has(a1.matchId)).toBe(false);                       // finished matches are cleaned up
+    await M.next('notice', (m) => /Back in the party lobby/.test(m.text));
+
+    // the leader queues the same group again
+    M.send({ t: 'party.ready', ready: true }); await partyOf(L, (p) => p.members.every((m: any) => m.ready));
+    L.send({ t: 'party.start' });
+    const [a2, b2] = await Promise.all([L.next('match.start', (m) => m.matchId !== a1.matchId), M.next('match.start', (m) => m.matchId !== a1.matchId)]);
+    expect(a2.matchId).toBe(b2.matchId); expect(a2.matchId).not.toBe(a1.matchId);
+    L.close(); M.close();
+  }, 30000);
+
+  it('a PUBLIC party queues together and the matchmaker keeps the party on one team', async () => {
+    const L = await Client.connect('PubL'), M = await Client.connect('PubM'), X = await Client.connect('SoloX');
+    L.send({ t: 'party.invite', target: M.id }); const i = await M.next('party.invite'); M.send({ t: 'party.respondInvite', inviteId: i.inviteId, accept: true });
+    await partyOf(L, (p) => p.members.length === 2);
+    L.send({ t: 'party.settings', settings: { visibility: 'public', mode: 'elimination', perTeam: 3 } }); await partyOf(L, (p) => p.settings.visibility === 'public');
+    M.send({ t: 'party.ready', ready: true }); await partyOf(L, (p) => p.members.every((m: any) => m.ready));
+    L.send({ t: 'party.start' });
+    await partyOf(L, (p) => p.state === 'queue');
+    X.send({ t: 'queue.join', mode: 'elimination' });
+    const [a, b, c] = await Promise.all([L.next('match.start', undefined, 15000), M.next('match.start', undefined, 15000), X.next('match.start', undefined, 15000)]);
+    expect(new Set([a.matchId, b.matchId, c.matchId]).size).toBe(1);
+    expect(a.squad).toBe(b.squad);                                             // the party was never split
+    for (const x of [L, M, X]) x.close();
+  }, 30000);
+});
+
 describe('authority, lobbies, reconnect', () => {
   it('two real clients join the same lobby by code and play in one match; the server owns position, ammo and score', async () => {
     const a = await Client.connect('LobA'), b = await Client.connect('LobB');
