@@ -19,8 +19,12 @@ async function boot() {
   const canvas = document.getElementById('game') as HTMLCanvasElement;
   const loading = createLoading();
   const game = await Game.boot(canvas, (p, m) => loading.set(p, m));
-  const menu = createMenu(game);
-  void menu;
+  const hooks: import('./ui/menu.ts').MenuHooks = {};
+  const menu = createMenu(game, hooks);
+  const { OnlinePanel } = await import('./ui/online.ts');
+  window.__hf.game = game;
+  const online = new OnlinePanel(game, menu);
+  hooks.openOnline = () => online.open();
   loading.done();
   window.__hf.game = game;
   state.ready = true;

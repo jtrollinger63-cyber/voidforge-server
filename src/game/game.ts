@@ -7,6 +7,8 @@ import { createStage, type Stage } from '../engine/renderer.ts';
 import { buildHillfront, type MapDef } from '../map/hillfront.ts';
 import { buildMapView, type MapView } from '../map/mapview.ts';
 import { GameSim, RULES, emptyCmd, type Cmd, type Mode, type SimEvent } from '../gameplay/sim.ts';
+import { LocalSession, NetSession, type GameSession } from './session.ts';
+import type { NetClient } from '../network/client.ts';
 import { fillWithBots, makeBot, type Difficulty } from '../gameplay/bots.ts';
 import { emptyView, syncFromSim, type ViewState, type ViewPlayer } from '../gameplay/view.ts';
 import { WEAPONS, BUY_ITEMS, type WeaponId } from '../gameplay/weapons.ts';
@@ -32,7 +34,9 @@ export class Game {
   readonly stage: Stage;
   readonly map: MapDef;
   readonly mapView: MapView;
-  readonly view: ViewState = emptyView();
+  private idleView: ViewState = emptyView();
+  /** the active session's view (or an empty one while in the menu) */
+  get view(): ViewState { return this.session ? this.session.view : this.idleView; }
   readonly hud: Hud;
   readonly screens: Screens;
   readonly input: Input;
@@ -40,7 +44,10 @@ export class Game {
   readonly fx: Effects;
   readonly assets: SoldierAssets;
   state: GameState = 'menu';
-  sim: GameSim | null = null;
+  session: GameSession | null = null;
+  /** the in-browser sim (offline practice only); null online */
+  get sim(): GameSim | null { return this.session instanceof LocalSession ? this.session.sim : null; }
+  onMatchEnd: ((winnerSquad: 0 | 1 | null) => void) | null = null;
   localId = -1;
   online = false;
   practice: PracticeOptions | null = null;
@@ -146,9 +153,27 @@ export class Game {
     this.localId = me.id;
     fillWithBots(sim, opts.perTeam, opts.difficulty);
     sim.round = 0; (sim as unknown as { beginRound(): void }).beginRound();
-    this.sim = sim;
+    this.session = new LocalSession(sim, me.id);
     this.beginPlaying();
     this.hud.banner('Hillfront', `${opts.perTeam}v${opts.perTeam} ${opts.mode} practice · ${opts.difficulty} bots`, 2600, '#e9b872');
+  }
+
+  /** an authoritative online match (server owns the simulation; we render snapshots + predict our own movement) */
+  startOnline(net: NetClient, start: { you: number; squad: 0 | 1; mode: Mode }) {
+    this.stopSession();
+    this.practice = null; this.online = true; this.localId = start.you;
+    this.session = new NetSession(net, start.you, this.map.world, start.mode, start.squad);
+    this.net = { sendCmd: undefined, buy: undefined };
+    this.beginPlaying();
+    this.hud.banner('Online match', `${start.mode} · you are on ${start.squad === 0 ? 'Squad 1' : 'Squad 2'}`, 2600, '#e9b872');
+  }
+  /** the server told us the match is over */
+  netMatchEnded(winnerSquad: 0 | 1 | null) {
+    if (!this.online || (this.state !== 'playing' && this.state !== 'paused')) return;
+    this.view.matchWinnerSquad = winnerSquad;
+    this.state = 'result'; this.input.exitLock(); this.screens.close();
+    const me = this.view.players.get(this.localId);
+    this.screens.result(this.view, me?.squad ?? 0, { menu: () => { this.quitToMenu(); this.onMatchEnd?.(winnerSquad); }, party: () => { this.quitToMenu(); this.onMatchEnd?.(winnerSquad); } });
   }
 
   private beginPlaying() {
@@ -163,13 +188,13 @@ export class Game {
     this.spectateId = -1; this.lastVmWeapon = null; this.prevHp = 100;
     sfx.unlock(); sfx.stopMusic(); sfx.startAmbience();
     this.input.enabled = true; this.input.clearAll();
-    if (this.sim) { syncFromSim(this.sim, this.view, this.localId); const me = this.sim.players.get(this.localId); if (me) { this.yaw = me.yaw; this.pitch = 0; this.eyeY = me.m.y + eyeHeight(me.m); } }
+    if (this.session) { this.session.sync(); const me = this.view.players.get(this.localId); if (me) { this.yaw = me.yaw; this.pitch = 0; this.eyeY = me.y + eyeHeight({ crouching: me.crouching } as never); } }
     this.input.requestLock();
     if (!this.input.locked) setTimeout(() => { if (!this.input.locked && this.input.lockFailed) toast('Mouse capture unavailable here: use the arrow keys to turn, or hold the right mouse button and drag.', 6000); }, 600);
   }
 
   stopSession() {
-    this.sim = null; this.localId = -1; this.practice = null;
+    this.session?.leave?.(); this.session?.dispose(); this.session = null; this.localId = -1; this.practice = null; this.online = false; this.net = null;
     for (const s of this.soldiers.values()) { s.root.removeFromParent(); s.dispose(); }
     this.soldiers.clear();
     if (this.deviceObj) { this.deviceObj.removeFromParent(); this.deviceObj = null; }
@@ -217,18 +242,17 @@ export class Game {
   private onKeyUp(_e: KeyboardEvent) { /* reserved */ }
 
   private doBuy(id: string): { ok: boolean; reason?: string } {
-    if (this.net?.buy) { this.net.buy(id); return { ok: true }; }
-    if (!this.sim) return { ok: false, reason: 'no match' };
-    const r = this.sim.buy(this.localId, id);
+    if (!this.session) return { ok: false, reason: 'no match' };
+    const r = this.session.buy(id);
     if (r.ok) sfx.buy(); else { sfx.uiError(); toast(r.reason ?? 'Cannot buy'); }
     return r;
   }
   private openBuy(refresh = false) {
-    const me = this.view.players.get(this.localId); if (!me || !this.sim) return;
+    const me = this.view.players.get(this.localId); if (!me || !this.session) return;
     if (this.screens.open === 'buy' && !refresh) { this.screens.close(); return; }
     if (!me.alive) return;
-    syncFromSim(this.sim, this.view, this.localId);
-    this.screens.buy(this.view, this.view.players.get(this.localId)!, (id) => this.doBuy(id), () => !!this.sim && this.sim.canBuy(this.sim.players.get(this.localId)!));
+    this.session.sync();
+    this.screens.buy(this.view, this.view.players.get(this.localId)!, (id) => this.doBuy(id), () => !!this.session && this.session.canBuy());
   }
 
   // ------------------------------------------------------------------ main loop
@@ -241,14 +265,17 @@ export class Game {
 
     if (this.state === 'menu') { this.menuFrame(dt); this.render(false); return; }
 
-    const sim = this.sim;
-    if (sim && this.state !== 'result' && this.state !== 'paused') {
-      const f = this.input.enabled ? this.input.poll(dt) : null;
-      this.control(dt, f);
-      sim.advance(dt);
-      this.handleEvents(sim.drainEvents());
-    } else if (this.state === 'paused' || this.state === 'result') { this.input.poll(dt); }
-    if (sim) syncFromSim(sim, this.view, this.localId);
+    const session = this.session;
+    if (session) {
+      const live = this.state !== 'result' && this.state !== 'paused';
+      let f: InputFrame | null = null;
+      if (live) { f = this.input.enabled ? this.input.poll(dt) : null; this.control(dt, f); } else this.input.poll(dt);
+      // offline practice pauses with the menu; an online match keeps running (and keeps streaming neutral input)
+      if (!live && this.online) session.setCmd(emptyCmd());
+      session.advance(dt, !live && !this.online);
+      this.handleEvents(session.drainEvents());
+      session.sync();
+    }
     this.updateDynamicRes(rawDt);
     this.tickResult(dt);
     this.updatePresentation(dt);
@@ -257,7 +284,7 @@ export class Game {
 
   // ------------------------------------------------------------------ local control
   private control(dt: number, f: InputFrame | null) {
-    const sim = this.sim!; const p = sim.players.get(this.localId); if (!p) return;
+    const session = this.session!; const p = this.view.players.get(this.localId); if (!p) return;
     const blocked = !!this.screens.open && this.screens.open !== 'score';
     if (f) {
       if (!blocked || this.screens.open === 'buy') {
@@ -272,7 +299,7 @@ export class Game {
     }
     if (!p.alive) {
       if (f?.spectateNext || (f && this.input.primaryHeld && this.spectateEdge())) this.cycleSpectate();
-      p.cmd = emptyCmd(); return;
+      session.setCmd(emptyCmd()); return;
     }
     const cmd: Cmd = emptyCmd();
     if (f && (!blocked || this.screens.open === 'buy')) {
@@ -286,8 +313,7 @@ export class Game {
       if (f.inspect) this.vm.inspect();
     }
     cmd.yaw = this.yaw; cmd.pitch = this.pitch;
-    p.cmd = cmd;
-    if (this.net?.sendCmd) this.net.sendCmd(cmd);
+    session.setCmd(cmd);
     void dt;
   }
   private sbT = 0;
@@ -315,7 +341,7 @@ export class Game {
 
   private handleEvents(events: SimEvent[]) {
     const V = this.view; const lid = this.localId;
-    const pl = (id: number) => this.sim?.players.get(id);
+    const pl = (id: number) => this.view.players.get(id) ?? this.cache.get(id);
     for (const e of events) {
       switch (e.t) {
         case 'shot': {
@@ -347,7 +373,7 @@ export class Game {
             sfx.hurt(e.dmg > 25); this.shake = Math.min(1, this.shake + e.dmg * 0.012);
             const att = e.a >= 0 ? pl(e.a) : null;
             if (att && victim) {
-              const ang = Math.atan2(-(att.m.x - victim.m.x), -(att.m.z - victim.m.z)); // world heading to attacker
+              const ang = Math.atan2(-(att.x - victim.x), -(att.z - victim.z)); // world heading to attacker
               this.hud.damageFrom(this.yaw - ang + Math.PI);
             }
           }
@@ -359,8 +385,8 @@ export class Game {
           if (e.v === lid) { const k = e.a >= 0 ? pl(e.a) : null; this.killedBy = k?.name ?? ''; this.spectateId = -1; if (k) this.hud.toast(`Eliminated by ${k.name}`, 3000); }
           break;
         }
-        case 'reload': { const p = pl(e.id); if (p) { const a = this.audioFor(p.m.x, p.m.y + 1, p.m.z); sfx.reload(a.dist, a.pan, p.slots[p.cur] ?? 'a5'); } break; }
-        case 'equip': { const p = pl(e.id); if (p) { const a = this.audioFor(p.m.x, p.m.y + 1, p.m.z); sfx.equip(a.dist, a.pan); } break; }
+        case 'reload': { const p = pl(e.id); if (p) { const a = this.audioFor(p.x, p.y + 1, p.z); sfx.reload(a.dist, a.pan, p.weapon); } break; }
+        case 'equip': { const p = pl(e.id); if (p) { const a = this.audioFor(p.x, p.y + 1, p.z); sfx.equip(a.dist, a.pan); } break; }
         case 'dry': if (e.id === lid) sfx.empty(); break;
         case 'phase': this.onPhase(e.phase, e.round); break;
         case 'roundEnd': {
@@ -379,7 +405,7 @@ export class Game {
         }
         case 'deviceDropped': this.hud.toast('The device was dropped'); break;
         case 'devicePicked': if (e.id === lid) this.hud.toast('You picked up the device'); break;
-        case 'matchEnd': { this.resultTimer = 3.2; break; }
+        case 'matchEnd': { if (!this.online) this.resultTimer = 3.2; break; }
         case 'sides': this.hud.banner('Sides swap', 'Half time', 3000, '#e9b872'); break;
         default: break;
       }
@@ -389,7 +415,7 @@ export class Game {
   private cachedPlayer(id: number): ViewPlayer | undefined { return this.cache.get(id) ?? this.view.players.get(id); }
 
   private onPhase(phase: string, round: number) {
-    const me = this.sim?.players.get(this.localId);
+    const me = this.view.players.get(this.localId);
     if (phase === 'freeze') {
       this.fx.clearDecals(); if (this.deviceObj) { this.deviceObj.visible = false; }
       if (me) { this.yaw = me.yaw; this.pitch = 0; }
@@ -407,7 +433,7 @@ export class Game {
       this.resultTimer -= dt;
       if (this.resultTimer <= 0) {
         this.resultTimer = -1; this.state = 'result'; this.input.exitLock();
-        const me = this.sim?.players.get(this.localId);
+        const me = this.view.players.get(this.localId);
         this.screens.result(this.view, me?.squad ?? 0, { again: this.practice ? () => this.restartPractice() : undefined, menu: () => this.quitToMenu() });
       }
     }
@@ -522,12 +548,12 @@ export class Game {
 
     // ---- visible enemies for the minimap (every 0.2 s)
     this.visAcc += dt;
-    if (this.visAcc > 0.2 && focus && this.sim) {
+    if (this.visAcc > 0.2 && focus && this.session) {
       this.visAcc = 0; this.visibleEnemies.clear();
       const mates = [...V.players.values()].filter((p) => p.alive && p.team === focus.team);
       for (const e of V.players.values()) {
         if (!e.alive || e.team === focus.team) continue;
-        for (const m of mates) { if (Math.hypot(m.x - e.x, m.z - e.z) < 70 && this.sim.world.clearLine(m.x, m.y + 1.5, m.z, e.x, e.y + 1.2, e.z)) { this.visibleEnemies.add(e.id); break; } }
+        for (const m of mates) { if (Math.hypot(m.x - e.x, m.z - e.z) < 70 && this.session.world.clearLine(m.x, m.y + 1.5, m.z, e.x, e.y + 1.2, e.z)) { this.visibleEnemies.add(e.id); break; } }
       }
     }
 

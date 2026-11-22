@@ -133,6 +133,8 @@ export class GameSim {
   matchWinnerSquad: 0 | 1 | null = null;
   /** recent noises that bots can hear */
   noises: { x: number; z: number; t: number; squad: number; loud: number }[] = [];
+  /** server hook: where a victim was when the shooter fired (null = use the current position) */
+  lagComp: ((shooter: Player, victim: Player) => { x: number; y: number; z: number } | null) | null = null;
   /** per-bot decision functions installed by the host (browser/server) */
   brains = new Map<number, (sim: GameSim, p: Player, dt: number) => Cmd>();
   private acc = 0;
@@ -462,7 +464,9 @@ export class GameSim {
       if (!v.alive || v.id === shooter.id) continue;
       if (!RULES.friendlyFire && v.team === shooter.team) continue;
       const h = playerHeight(v.m), r = PLAYER.radius;
-      const min = [v.m.x - r, v.m.y, v.m.z - r], max = [v.m.x + r, v.m.y + h, v.m.z + r];
+      const rw = this.lagComp ? this.lagComp(shooter, v) : null;
+      const vx = rw ? rw.x : v.m.x, vy = rw ? rw.y : v.m.y, vz = rw ? rw.z : v.m.z;
+      const min = [vx - r, vy, vz - r], max = [vx + r, vy + h, vz + r];
       let t0 = 0, t1 = maxT, ok = true;
       const o = [ox, oy, oz], d = [dx, dy, dz];
       for (let i = 0; i < 3 && ok; i++) {
@@ -476,7 +480,7 @@ export class GameSim {
       }
       if (!ok) continue;
       if (!best || t0 < best.t) {
-        const hy = oy + dy * t0 - v.m.y;
+        const hy = oy + dy * t0 - vy;
         best = { player: v, t: t0, head: hy > h - 0.27, legs: hy < 0.55 };
       }
     }
