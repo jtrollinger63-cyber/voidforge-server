@@ -58,7 +58,10 @@ export async function runSoldierViewer(params: URLSearchParams, state: Record<st
     three: [2.1, 1.35, 2.6, 0, 0.95, 0], close: [0.9, 1.35, 1.5, 0, 1.25, 0], top: [0, 4.2, 0.6, 0, 0.9, 0],
     hands: [0.55, 1.25, 1.0, 0.1, 1.15, 0.15],
   };
-  const c = cams[params.get('cam') ?? 'three']!;
+  const camParam = params.get('cam') ?? 'three';
+  const custom = camParam.includes(',') ? camParam.split(',').map(Number) : null;
+  const c = (custom && custom.length === 6 ? custom : cams[camParam] ?? cams.three!) as [number, number, number, number, number, number];
+  state.soldiers = soldiers; state.assets = assets;
   stage.camera.position.set(c[0], c[1], c[2]); stage.camera.lookAt(c[3], c[4], c[5]);
   stage.camera.fov = Number(params.get('fov') ?? '38'); stage.camera.updateProjectionMatrix();
   stage.followShadow(0, 0, 0);
