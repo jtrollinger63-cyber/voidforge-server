@@ -1,0 +1,29 @@
+{
+  "name": "hillfront",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hillfront - original CS-style round-based browser team shooter (Three.js + Node authoritative server)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "inspect:glb": "tsx tools/inspect-glb.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "three": "0.187.0"
+  },
+  "devDependencies": {
+    "@gltf-transform/core": "4.5.1",
+    "@gltf-transform/extensions": "4.5.1",
+    "@gltf-transform/functions": "4.5.1",
+    "@types/node": "26.6.6",
+    "@types/three": "0.187.0",
+    "meshoptimizer": "1.3.0",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.8",
+    "vitest": "5.1.1"
+  }
+}
