@@ -14,6 +14,7 @@ import { loadGLB } from '../assets/loader.ts';
 import type { GripSet, WeaponId } from '../gameplay/weapons.ts';
 import { WEAPONS } from '../gameplay/weapons.ts';
 
+const WEAPONS_NOFLASH = ['knife'];
 const UPPER = new Set(['Spine', 'Chest', 'Neck', 'Head', 'Shoulder_L', 'UpperArm_L', 'LowerArm_L', 'Hand_L', 'Shoulder_R', 'UpperArm_R', 'LowerArm_R', 'Hand_R']);
 
 export interface SoldierAssets {
@@ -85,6 +86,10 @@ export class Soldier {
   private pitchSm = 0;
   private muzzle = new THREE.Object3D();
   private fadeWork = 0;
+  private flashObj: THREE.Group | null = null;
+  private flashT = 0;
+  private static flashMat: THREE.MeshBasicMaterial | null = null;
+  private static flashGeo: THREE.PlaneGeometry | null = null;
 
   constructor(assets: SoldierAssets) {
     this.assets = assets;
@@ -151,7 +156,22 @@ export class Soldier {
     w.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = true; m.frustumCulled = false; } });
     sock.add(holder);
     this.weaponNode = holder;
+    // muzzle flash sprite at the barrel tip (model +Z is the muzzle; bounds measured once per weapon)
+    if (!Soldier.flashMat) {
+      Soldier.flashMat = new THREE.MeshBasicMaterial({ color: 0xffd48a, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+      Soldier.flashGeo = new THREE.PlaneGeometry(0.2, 0.2);
+    }
+    const box = new THREE.Box3().setFromObject(src);
+    this.flashObj = new THREE.Group();
+    for (let i = 0; i < 2; i++) { const q = new THREE.Mesh(Soldier.flashGeo!, Soldier.flashMat!); q.rotation.z = i * Math.PI / 4; this.flashObj.add(q); }
+    this.flashObj.position.set(0, Math.min(box.max.y * 0.68, 0.22), box.max.z + 0.07);
+    this.flashObj.visible = false; w.add(this.flashObj);
   }
+
+  /** show the muzzle flash for a few frames */
+  flash() { if (this.flashObj && WEAPONS_NOFLASH.indexOf(this.weaponKey.split(':')[0]!) < 0) { this.flashT = 0.055; this.flashObj.visible = true; this.flashObj.rotation.z = Math.random() * 6; } }
+  /** world position of the barrel tip (valid after the last render) */
+  muzzleWorld(out: THREE.Vector3): THREE.Vector3 { if (this.flashObj) return this.flashObj.getWorldPosition(out); return this.root.getWorldPosition(out); }
 
   private gripSuffix(w: WeaponId): string {
     const g: GripSet = WEAPONS[w].gripSet;
@@ -249,6 +269,7 @@ export class Soldier {
       }
     }
 
+    if (this.flashT > 0) { this.flashT -= dt; if (this.flashT <= 0 && this.flashObj) this.flashObj.visible = false; }
     this.mixer.update(dt);
 
     // ---- procedural aim pitch (after the mixer wrote the pose) ----

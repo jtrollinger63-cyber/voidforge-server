@@ -17,6 +17,8 @@ export interface MapView {
   stats: { drawCalls: number; triangles: number; placements: number; materials: number; buildMs: number };
   setShadows(on: boolean): void;
   debugColliders(map: MapDef): THREE.Group;
+  /** a fresh, un-merged instance of a kit piece (for dynamic objects such as the objective device) */
+  piece(name: string): THREE.Object3D | null;
 }
 
 interface Part { geo: THREE.BufferGeometry; mat: THREE.Material; }
@@ -115,6 +117,13 @@ export async function buildMapView(map: MapDef): Promise<MapView> {
     stats: { drawCalls: meshes.length, triangles, placements: map.placements.length, materials: mats.size, buildMs: performance.now() - t0 },
     setShadows(on: boolean) { for (const m of meshes) { m.castShadow = on; } },
     debugColliders(def: MapDef) { return buildDebugColliders(def); },
+    piece(name: string) {
+      const h = root.children.find((c) => c.name === name);
+      if (!h) return null;
+      const c = h.clone(true);
+      c.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+      return c;
+    },
   };
 }
 

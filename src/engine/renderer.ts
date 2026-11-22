@@ -31,9 +31,9 @@ export function createStage(canvas: HTMLCanvasElement, qualityName: QualityName 
   scene.add(createSkyDome());
   const hills = createHills(); hills.visible = quality.hills; scene.add(hills);
   scene.environment = buildEnvironment(renderer);
-  scene.environmentIntensity = 1.35;
+  scene.environmentIntensity = 1.0;
 
-  const hemi = new THREE.HemisphereLight(0xdfe9ff, 0xa88c64, 1.0);
+  const hemi = new THREE.HemisphereLight(0xf4efe6, 0xb59a6e, 1.35);
   scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xffe9c4, 2.3);
   sun.castShadow = quality.shadows;
