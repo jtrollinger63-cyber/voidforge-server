@@ -1,0 +1,944 @@
+{
+ "generated": "2026-11-22T17:03:40.064Z",
+ "assets": [
+  {
+   "file": "soldier.glb",
+   "license": "CC0-1.0",
+   "source": "https://toolbenchdev.com/gamedev/cc0-game-assets/low-poly-squad-kit/",
+   "originalBytes": 1846968,
+   "optimizedBytes": 692004,
+   "trisBefore": 3368,
+   "trisAfter": 4308,
+   "notes": "Toolbench Low-poly Squad Kit figure. 22 bones, 4 sockets, 53 clips preserved; mesh rebuilt as one skinned primitive with atlas UVs + 65 added gear parts (see tools/make-soldier.ts); animation tracks resampled (tol 1e-4) and meshopt-compressed.",
+   "clips": [
+    "aim",
+    "aim_bow",
+    "aim_heavy",
+    "aim_polearm",
+    "aim_rifle",
+    "crouch",
+    "crouch_blade",
+    "crouch_bow",
+    "crouch_heavy",
+    "crouch_polearm",
+    "crouch_rifle",
+    "crouch_sidearm",
+    "die",
+    "fire",
+    "fire_bow",
+    "fire_heavy",
+    "fire_rifle",
+    "hit",
+    "idle",
+    "idle_blade",
+    "idle_bow",
+    "idle_heavy",
+    "idle_polearm",
+    "idle_rifle",
+    "idle_sidearm",
+    "jump",
+    "jump_rifle",
+    "melee",
+    "melee_polearm",
+    "reload",
+    "reload_rifle",
+    "run",
+    "run_blade",
+    "run_bow",
+    "run_heavy",
+    "run_polearm",
+    "run_rifle",
+    "run_sidearm",
+    "throw",
+    "throw_blade",
+    "throw_bow",
+    "throw_heavy",
+    "throw_polearm",
+    "throw_rifle",
+    "throw_sidearm",
+    "walk",
+    "walk_blade",
+    "walk_bow",
+    "walk_heavy",
+    "walk_polearm",
+    "walk_rifle",
+    "walk_sidearm",
+    "work"
+   ],
+   "joints": [
+    "Root",
+    "Hips",
+    "Spine",
+    "Chest",
+    "Neck",
+    "Head",
+    "Shoulder_L",
+    "UpperArm_L",
+    "LowerArm_L",
+    "Hand_L",
+    "Shoulder_R",
+    "UpperArm_R",
+    "LowerArm_R",
+    "Hand_R",
+    "UpperLeg_L",
+    "LowerLeg_L",
+    "Foot_L",
+    "Toe_L",
+    "UpperLeg_R",
+    "LowerLeg_R",
+    "Foot_R",
+    "Toe_R"
+   ],
+   "sockets": [
+    "Socket_Head",
+    "Socket_Hand_L",
+    "Socket_Hand_R",
+    "Socket_Back"
+   ]
+  },
+  {
+   "file": "kit.glb",
+   "license": "CC0-1.0",
+   "source": "https://3dassets.dev/packs/tactical-shooter-hill-town",
+   "originalBytes": 2277764,
+   "optimizedBytes": 394448,
+   "trisBefore": 45100,
+   "trisAfter": 19252,
+   "notes": "Modular Hill Town pieces, simplified per tools/asset-config.ts, animations removed, merged into one file.",
+   "pieces": [
+    {
+     "name": "wall-plaster-bay",
+     "id": 27512,
+     "url": "https://cdn.3dassets.dev/assets/27512/v1/model.glb",
+     "originalBytes": 51052,
+     "trisBefore": 36,
+     "trisAfter": 36,
+     "bounds": {
+      "min": [
+       -2,
+       0,
+       -0.18
+      ],
+      "max": [
+       2.001,
+       3.5,
+       0.18
+      ]
+     }
+    },
+    {
+     "name": "wall-ochre-bay",
+     "id": 27514,
+     "url": "https://cdn.3dassets.dev/assets/27514/v1/model.glb",
+     "originalBytes": 51044,
+     "trisBefore": 36,
+     "trisAfter": 36,
+     "bounds": {
+      "min": [
+       -2,
+       0,
+       -0.18
+      ],
+      "max": [
+       2.001,
+       3.5,
+       0.18
+      ]
+     }
+    },
+    {
+     "name": "wall-shuttered-window",
+     "id": 27511,
+     "url": "https://cdn.3dassets.dev/assets/27511/v1/model.glb",
+     "originalBytes": 102068,
+     "trisBefore": 2032,
+     "trisAfter": 664,
+     "bounds": {
+      "min": [
+       -2,
+       0,
+       -0.204
+      ],
+      "max": [
+       2.001,
+       3.5,
+       0.25
+      ]
+     }
+    },
+    {
+     "name": "wall-timber-door",
+     "id": 27513,
+     "url": "https://cdn.3dassets.dev/assets/27513/v1/model.glb",
+     "originalBytes": 101456,
+     "trisBefore": 1356,
+     "trisAfter": 726,
+     "bounds": {
+      "min": [
+       -2,
+       0,
+       -0.18
+      ],
+      "max": [
+       2.001,
+       3.5,
+       0.55
+      ]
+     }
+    },
+    {
+     "name": "wall-arched-passage",
+     "id": 27516,
+     "url": "https://cdn.3dassets.dev/assets/27516/v1/model.glb",
+     "originalBytes": 65508,
+     "trisBefore": 644,
+     "trisAfter": 644,
+     "bounds": {
+      "min": [
+       -2,
+       0,
+       -0.18
+      ],
+      "max": [
+       2.001,
+       3.5,
+       0.18
+      ]
+     }
+    },
+    {
+     "name": "balcony-bay",
+     "id": 27517,
+     "url": "https://cdn.3dassets.dev/assets/27517/v1/model.glb",
+     "originalBytes": 91348,
+     "trisBefore": 1824,
+     "trisAfter": 982,
+     "bounds": {
+      "min": [
+       -2,
+       0,
+       -0.18
+      ],
+      "max": [
+       2.001,
+       3.5,
+       1.295
+      ]
+     }
+    },
+    {
+     "name": "corner-post",
+     "id": 27515,
+     "url": "https://cdn.3dassets.dev/assets/27515/v1/model.glb",
+     "originalBytes": 72008,
+     "trisBefore": 876,
+     "trisAfter": 140,
+     "bounds": {
+      "min": [
+       -0.233,
+       0,
+       -0.233
+      ],
+      "max": [
+       0.233,
+       3.493,
+       0.233
+      ]
+     }
+    },
+    {
+     "name": "floor-tile",
+     "id": 27525,
+     "url": "https://cdn.3dassets.dev/assets/27525/v1/model.glb",
+     "originalBytes": 58844,
+     "trisBefore": 444,
+     "trisAfter": 444,
+     "bounds": {
+      "min": [
+       -2,
+       0,
+       -2
+      ],
+      "max": [
+       2,
+       0.1,
+       2
+      ]
+     }
+    },
+    {
+     "name": "roof-tile-slope",
+     "id": 27518,
+     "url": "https://cdn.3dassets.dev/assets/27518/v1/model.glb",
+     "originalBytes": 75180,
+     "trisBefore": 384,
+     "trisAfter": 384,
+     "bounds": {
+      "min": [
+       -2,
+       0,
+       -0.06
+      ],
+      "max": [
+       2.001,
+       2.131,
+       4.028
+      ]
+     }
+    },
+    {
+     "name": "roof-ridge-cap",
+     "id": 27521,
+     "url": "https://cdn.3dassets.dev/assets/27521/v1/model.glb",
+     "originalBytes": 58024,
+     "trisBefore": 332,
+     "trisAfter": 200,
+     "bounds": {
+      "min": [
+       -2,
+       0.009,
+       -0.185
+      ],
+      "max": [
+       2,
+       0.255,
+       0.185
+      ]
+     }
+    },
+    {
+     "name": "roof-gable-half",
+     "id": 27519,
+     "url": "https://cdn.3dassets.dev/assets/27519/v1/model.glb",
+     "originalBytes": 54196,
+     "trisBefore": 140,
+     "trisAfter": 140,
+     "bounds": {
+      "min": [
+       -2.053,
+       0,
+       -0.23
+      ],
+      "max": [
+       2.03,
+       2.079,
+       0.23
+      ]
+     }
+    },
+    {
+     "name": "roof-parapet",
+     "id": 27520,
+     "url": "https://cdn.3dassets.dev/assets/27520/v1/model.glb",
+     "originalBytes": 64792,
+     "trisBefore": 660,
+     "trisAfter": 158,
+     "bounds": {
+      "min": [
+       -2,
+       0,
+       -0.17
+      ],
+      "max": [
+       2,
+       0.74,
+       0.17
+      ]
+     }
+    },
+    {
+     "name": "external-stair-run",
+     "id": 27522,
+     "url": "https://cdn.3dassets.dev/assets/27522/v1/model.glb",
+     "originalBytes": 117856,
+     "trisBefore": 3008,
+     "trisAfter": 1798,
+     "bounds": {
+      "min": [
+       -0.672,
+       0,
+       -2.182
+      ],
+      "max": [
+       0.673,
+       4.503,
+       2.182
+      ]
+     }
+    },
+    {
+     "name": "stone-step-block",
+     "id": 27523,
+     "url": "https://cdn.3dassets.dev/assets/27523/v1/model.glb",
+     "originalBytes": 63216,
+     "trisBefore": 648,
+     "trisAfter": 400,
+     "bounds": {
+      "min": [
+       -1.03,
+       0,
+       -0.6
+      ],
+      "max": [
+       1.03,
+       0.615,
+       0.6
+      ]
+     }
+    },
+    {
+     "name": "freestanding-archway",
+     "id": 27524,
+     "url": "https://cdn.3dassets.dev/assets/27524/v1/model.glb",
+     "originalBytes": 73612,
+     "trisBefore": 1036,
+     "trisAfter": 700,
+     "bounds": {
+      "min": [
+       -2.163,
+       0,
+       -0.46
+      ],
+      "max": [
+       2.163,
+       4.213,
+       0.46
+      ]
+     }
+    },
+    {
+     "name": "low-garden-wall",
+     "id": 27527,
+     "url": "https://cdn.3dassets.dev/assets/27527/v1/model.glb",
+     "originalBytes": 66576,
+     "trisBefore": 768,
+     "trisAfter": 380,
+     "bounds": {
+      "min": [
+       -2,
+       0,
+       -0.21
+      ],
+      "max": [
+       2,
+       0.88,
+       0.21
+      ]
+     }
+    },
+    {
+     "name": "octagonal-fountain",
+     "id": 27528,
+     "url": "https://cdn.3dassets.dev/assets/27528/v1/model.glb",
+     "originalBytes": 115052,
+     "trisBefore": 2276,
+     "trisAfter": 1334,
+     "bounds": {
+      "min": [
+       -1.72,
+       0,
+       -1.72
+      ],
+      "max": [
+       1.72,
+       2.26,
+       1.72
+      ]
+     }
+    },
+    {
+     "name": "market-awning-stall",
+     "id": 27529,
+     "url": "https://cdn.3dassets.dev/assets/27529/v1/model.glb",
+     "originalBytes": 70924,
+     "trisBefore": 2412,
+     "trisAfter": 1296,
+     "bounds": {
+      "min": [
+       -1.28,
+       0.003,
+       -0.89
+      ],
+      "max": [
+       1.28,
+       2.73,
+       0.89
+      ]
+     }
+    },
+    {
+     "name": "crate-stack",
+     "id": 27530,
+     "url": "https://cdn.3dassets.dev/assets/27530/v1/model.glb",
+     "originalBytes": 129200,
+     "trisBefore": 4860,
+     "trisAfter": 900,
+     "bounds": {
+      "min": [
+       -0.723,
+       0,
+       -0.494
+      ],
+      "max": [
+       0.723,
+       1.3,
+       0.496
+      ]
+     }
+    },
+    {
+     "name": "wine-barrel",
+     "id": 27531,
+     "url": "https://cdn.3dassets.dev/assets/27531/v1/model.glb",
+     "originalBytes": 39772,
+     "trisBefore": 1208,
+     "trisAfter": 336,
+     "bounds": {
+      "min": [
+       -0.35,
+       0,
+       -0.359
+      ],
+      "max": [
+       0.365,
+       0.895,
+       0.35
+      ]
+     }
+    },
+    {
+     "name": "sandbag-wall",
+     "id": 27532,
+     "url": "https://cdn.3dassets.dev/assets/27532/v1/model.glb",
+     "originalBytes": 109216,
+     "trisBefore": 6000,
+     "trisAfter": 1000,
+     "bounds": {
+      "min": [
+       -1.074,
+       0.013,
+       -0.318
+      ],
+      "max": [
+       1.074,
+       1.106,
+       0.322
+      ]
+     }
+    },
+    {
+     "name": "jersey-barrier",
+     "id": 27533,
+     "url": "https://cdn.3dassets.dev/assets/27533/v1/model.glb",
+     "originalBytes": 60556,
+     "trisBefore": 420,
+     "trisAfter": 420,
+     "bounds": {
+      "min": [
+       -1.012,
+       0,
+       -0.312
+      ],
+      "max": [
+       1.012,
+       0.95,
+       0.312
+      ]
+     }
+    },
+    {
+     "name": "oil-drum",
+     "id": 27534,
+     "url": "https://cdn.3dassets.dev/assets/27534/v1/model.glb",
+     "originalBytes": 17448,
+     "trisBefore": 912,
+     "trisAfter": 318,
+     "bounds": {
+      "min": [
+       -0.295,
+       0,
+       -0.3
+      ],
+      "max": [
+       0.295,
+       0.885,
+       0.3
+      ]
+     }
+    },
+    {
+     "name": "stone-bench",
+     "id": 27535,
+     "url": "https://cdn.3dassets.dev/assets/27535/v1/model.glb",
+     "originalBytes": 87016,
+     "trisBefore": 972,
+     "trisAfter": 478,
+     "bounds": {
+      "min": [
+       -0.9,
+       0,
+       -0.237
+      ],
+      "max": [
+       0.9,
+       0.57,
+       0.24
+      ]
+     }
+    },
+    {
+     "name": "potted-olive-tree",
+     "id": 27536,
+     "url": "https://cdn.3dassets.dev/assets/27536/v1/model.glb",
+     "originalBytes": 84600,
+     "trisBefore": 1748,
+     "trisAfter": 796,
+     "bounds": {
+      "min": [
+       -0.853,
+       0,
+       -0.803
+      ],
+      "max": [
+       0.853,
+       2.124,
+       0.803
+      ]
+     }
+    },
+    {
+     "name": "wall-lamp-bracket",
+     "id": 27537,
+     "url": "https://cdn.3dassets.dev/assets/27537/v1/model.glb",
+     "originalBytes": 63184,
+     "trisBefore": 656,
+     "trisAfter": 368,
+     "bounds": {
+      "min": [
+       -0.135,
+       0,
+       -0.303
+      ],
+      "max": [
+       0.135,
+       0.621,
+       0.303
+      ]
+     }
+    },
+    {
+     "name": "timber-double-gate",
+     "id": 27538,
+     "url": "https://cdn.3dassets.dev/assets/27538/v1/model.glb",
+     "originalBytes": 119976,
+     "trisBefore": 2556,
+     "trisAfter": 1262,
+     "bounds": {
+      "min": [
+       -2,
+       0,
+       -0.2
+      ],
+      "max": [
+       2,
+       3.5,
+       0.2
+      ]
+     }
+    },
+    {
+     "name": "site-marker-board",
+     "id": 27539,
+     "url": "https://cdn.3dassets.dev/assets/27539/v1/model.glb",
+     "originalBytes": 86960,
+     "trisBefore": 972,
+     "trisAfter": 498,
+     "bounds": {
+      "min": [
+       -0.62,
+       0,
+       -0.218
+      ],
+      "max": [
+       0.62,
+       1.54,
+       0.218
+      ]
+     }
+    },
+    {
+     "name": "barrier-tape-stand",
+     "id": 27540,
+     "url": "https://cdn.3dassets.dev/assets/27540/v1/model.glb",
+     "originalBytes": 15268,
+     "trisBefore": 548,
+     "trisAfter": 548,
+     "bounds": {
+      "min": [
+       -1.44,
+       0,
+       -0.24
+      ],
+      "max": [
+       1.44,
+       1.08,
+       0.24
+      ]
+     }
+    },
+    {
+     "name": "objective-device",
+     "id": 27560,
+     "url": "https://cdn.3dassets.dev/assets/27560/v1/model.glb",
+     "originalBytes": 71280,
+     "trisBefore": 3376,
+     "trisAfter": 894,
+     "bounds": {
+      "min": [
+       -0.218,
+       0.002,
+       -0.181
+      ],
+      "max": [
+       0.218,
+       0.313,
+       0.183
+      ]
+     }
+    },
+    {
+     "name": "defuse-kit",
+     "id": 27561,
+     "url": "https://cdn.3dassets.dev/assets/27561/v1/model.glb",
+     "originalBytes": 40532,
+     "trisBefore": 1960,
+     "trisAfter": 972,
+     "bounds": {
+      "min": [
+       -0.15,
+       0,
+       -0.11
+      ],
+      "max": [
+       0.15,
+       0.162,
+       0.111
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "file": "weapons3p.glb",
+   "license": "CC0-1.0",
+   "source": "https://3dassets.dev/packs/tactical-shooter-hill-town",
+   "originalBytes": 639868,
+   "optimizedBytes": 163012,
+   "trisBefore": 26844,
+   "trisAfter": 9766,
+   "notes": "Third-person world weapons (Hill Town pack). Built-in open/close clips removed; they are not reload animations.",
+   "pieces": [
+    {
+     "name": "attacker-rifle",
+     "id": 27550,
+     "url": "https://cdn.3dassets.dev/assets/27550/v1/model.glb",
+     "originalBytes": 91560,
+     "trisBefore": 4008,
+     "trisAfter": 1394,
+     "bounds": {
+      "min": [
+       -0.028,
+       0,
+       -0.436
+      ],
+      "max": [
+       0.028,
+       0.325,
+       0.436
+      ]
+     }
+    },
+    {
+     "name": "defender-carbine",
+     "id": 27549,
+     "url": "https://cdn.3dassets.dev/assets/27549/v1/model.glb",
+     "originalBytes": 89844,
+     "trisBefore": 3972,
+     "trisAfter": 1397,
+     "bounds": {
+      "min": [
+       -0.028,
+       0,
+       -0.369
+      ],
+      "max": [
+       0.028,
+       0.325,
+       0.369
+      ]
+     }
+    },
+    {
+     "name": "service-pistol",
+     "id": 27542,
+     "url": "https://cdn.3dassets.dev/assets/27542/v1/model.glb",
+     "originalBytes": 61812,
+     "trisBefore": 2452,
+     "trisAfter": 880,
+     "bounds": {
+      "min": [
+       -0.019,
+       0,
+       -0.127
+      ],
+      "max": [
+       0.019,
+       0.189,
+       0.127
+      ]
+     }
+    },
+    {
+     "name": "full-smg",
+     "id": 27545,
+     "url": "https://cdn.3dassets.dev/assets/27545/v1/model.glb",
+     "originalBytes": 91564,
+     "trisBefore": 4188,
+     "trisAfter": 1294,
+     "bounds": {
+      "min": [
+       -0.038,
+       0,
+       -0.292
+      ],
+      "max": [
+       0.038,
+       0.325,
+       0.292
+      ]
+     }
+    },
+    {
+     "name": "pump-shotgun",
+     "id": 27547,
+     "url": "https://cdn.3dassets.dev/assets/27547/v1/model.glb",
+     "originalBytes": 129408,
+     "trisBefore": 4284,
+     "trisAfter": 1395,
+     "bounds": {
+      "min": [
+       -0.03,
+       0,
+       -0.474
+      ],
+      "max": [
+       0.03,
+       0.325,
+       0.474
+      ]
+     }
+    },
+    {
+     "name": "marksman-rifle",
+     "id": 27551,
+     "url": "https://cdn.3dassets.dev/assets/27551/v1/model.glb",
+     "originalBytes": 93748,
+     "trisBefore": 4144,
+     "trisAfter": 1398,
+     "bounds": {
+      "min": [
+       -0.033,
+       0,
+       -0.508
+      ],
+      "max": [
+       0.033,
+       0.353,
+       0.508
+      ]
+     }
+    },
+    {
+     "name": "combat-knife",
+     "id": 27554,
+     "url": "https://cdn.3dassets.dev/assets/27554/v1/model.glb",
+     "originalBytes": 24560,
+     "trisBefore": 1048,
+     "trisAfter": 560,
+     "bounds": {
+      "min": [
+       -0.026,
+       0,
+       -0.176
+      ],
+      "max": [
+       0.026,
+       0.04,
+       0.176
+      ]
+     }
+    },
+    {
+     "name": "frag-grenade",
+     "id": 27555,
+     "url": "https://cdn.3dassets.dev/assets/27555/v1/model.glb",
+     "originalBytes": 25120,
+     "trisBefore": 1356,
+     "trisAfter": 536,
+     "bounds": {
+      "min": [
+       -0.031,
+       0,
+       -0.031
+      ],
+      "max": [
+       0.031,
+       0.118,
+       0.031
+      ]
+     }
+    },
+    {
+     "name": "flash-grenade",
+     "id": 27556,
+     "url": "https://cdn.3dassets.dev/assets/27556/v1/model.glb",
+     "originalBytes": 14444,
+     "trisBefore": 576,
+     "trisAfter": 382,
+     "bounds": {
+      "min": [
+       -0.039,
+       0,
+       -0.032
+      ],
+      "max": [
+       0.039,
+       0.141,
+       0.032
+      ]
+     }
+    },
+    {
+     "name": "smoke-grenade",
+     "id": 27557,
+     "url": "https://cdn.3dassets.dev/assets/27557/v1/model.glb",
+     "originalBytes": 17808,
+     "trisBefore": 816,
+     "trisAfter": 530,
+     "bounds": {
+      "min": [
+       -0.039,
+       0,
+       -0.039
+      ],
+      "max": [
+       0.039,
+       0.179,
+       0.039
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}

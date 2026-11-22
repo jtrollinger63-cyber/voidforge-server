@@ -1,0 +1,42 @@
+{
+  "name": "hillfront",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hillfront - original CS-style round-based browser team shooter (Three.js + Node authoritative server)",
+  "scripts": {
+    "dev": "vite",
+    "server": "tsx server/index.ts",
+    "start": "node tools/dev-all.cjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "assets:fetch": "tsx tools/fetch-assets.ts",
+    "assets:build": "tsx tools/build-assets.ts",
+    "assets:import": "tsx tools/import-inbox.ts",
+    "build": "tsc --noEmit && vite build",
+    "build:single": "vite build -c vite.single.config.ts && tsx tools/pack-single.ts",
+    "release": "npm run assets:build && npm run build:single && npm run size",
+    "size": "tsx tools/check-size.ts --max-mb 12",
+    "e2e:play": "node tools/playtest.cjs",
+    "e2e:flows": "node tools/flowtest.cjs",
+    "e2e:net": "node tools/nettest.cjs"
+  },
+  "dependencies": {
+    "three": "0.187.0",
+    "ws": "8.23.0"
+  },
+  "devDependencies": {
+    "@gltf-transform/core": "4.5.1",
+    "@gltf-transform/extensions": "4.5.1",
+    "@gltf-transform/functions": "4.5.1",
+    "@types/node": "26.6.6",
+    "@types/three": "0.187.0",
+    "@types/ws": "8.18.2",
+    "meshoptimizer": "1.3.0",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.8",
+    "vite-plugin-singlefile": "2.3.4",
+    "vitest": "5.1.1"
+  }
+}

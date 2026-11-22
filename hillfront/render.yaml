@@ -1,0 +1,18 @@
+# Sample Render blueprint for the Hillfront game server. NOT DEPLOYED: no hosting credentials were available in the build environment.
+# Render terminates TLS, so browsers connect to wss://<service>.onrender.com/ws . Keep ONE instance: match state lives in memory.
+services:
+  - type: web
+    name: hillfront-server
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npx tsx server/index.ts
+    healthCheckPath: /health
+    numInstances: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: ALLOWED_ORIGINS        # comma-separated exact page origins, e.g. https://yourname.github.io ; leave empty while testing
+        value: ""
+      - key: MAX_SESSIONS
+        value: "300"
