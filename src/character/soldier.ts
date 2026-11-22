@@ -14,6 +14,8 @@ import { loadGLB, floatGeometry } from '../assets/loader.ts';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { GripSet, WeaponId } from '../gameplay/weapons.ts';
 import { WEAPONS } from '../gameplay/weapons.ts';
+import { solveTwoBone } from './ik.ts';
+import { HOLDS, DEFAULT_HOLD, guardParts } from '../weapons/holds.ts';
 
 const WEAPONS_NOFLASH = ['knife'];
 const UPPER = new Set(['Spine', 'Chest', 'Neck', 'Head', 'Shoulder_L', 'UpperArm_L', 'LowerArm_L', 'Hand_L', 'Shoulder_R', 'UpperArm_R', 'LowerArm_R', 'Hand_R']);
@@ -63,6 +65,8 @@ function worldWeapon(src: THREE.Object3D, key: string): { geo: THREE.BufferGeome
     const n = g.attributes.position!.count; const cols = new Float32Array(n * 3); for (let i = 0; i < n; i++) { cols[i * 3] = col.r; cols[i * 3 + 1] = col.g; cols[i * 3 + 2] = col.b; }
     g.setAttribute('color', new THREE.BufferAttribute(cols, 3)); g.deleteAttribute('uv'); parts.push(g);
   });
+  const gd = HOLDS[key]?.guard;
+  if (gd && parts.length) parts.push(guardGeometry(gd[0], gd[1], parts[0]!));
   const geo = mergeGeometries(parts, false)!; for (const p of parts) p.dispose();
   geo.computeBoundingBox();
   c = { geo, box: geo.boundingBox!.clone() }; weaponCache.set(key, c);
@@ -88,17 +92,25 @@ export interface SoldierViewState {
   time: number;
 }
 
-/** grip transform measured against Socket_Hand_R (see docs/ANIMATIONS.md): rotates +Z muzzle -> +X, then shifts the grip to the origin. */
-interface Grip { yaw: number; gx: number; gy: number; gz: number; scale: number; }
-const GRIP: Record<string, Grip> = {
-  'attacker-rifle':   { yaw: Math.PI / 2, gx: 0, gy: 0.105, gz: -0.12, scale: 1 },
-  'defender-carbine': { yaw: Math.PI / 2, gx: 0, gy: 0.105, gz: -0.10, scale: 1 },
-  'full-smg':         { yaw: Math.PI / 2, gx: 0, gy: 0.10, gz: -0.09, scale: 1 },
-  'pump-shotgun':     { yaw: Math.PI / 2, gx: 0, gy: 0.105, gz: -0.14, scale: 1 },
-  'marksman-rifle':   { yaw: Math.PI / 2, gx: 0, gy: 0.11, gz: -0.15, scale: 1 },
-  'service-pistol':   { yaw: Math.PI / 2, gx: 0, gy: 0.075, gz: -0.045, scale: 1 },
-  'combat-knife':     { yaw: Math.PI / 2, gx: 0, gy: 0.01, gz: 0.0, scale: 1 },
-};
+/** weapon model -> hand-socket frame: model +Z (muzzle) -> socket +X, model +Y (up) -> socket -Z, model +X (gun left) -> socket -Y.
+ *  (Sockets are authored with +X forward, +Y toward the wearer's right and +Z down. The first version mapped "up" onto +Y and so rolled every gun 90 degrees.) */
+const WEAPON_TO_SOCKET = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, -1), new THREE.Vector3(1, 0, 0)));
+/** orientation the animators gave Socket_Hand_L relative to Socket_Hand_R on every rifle clip (measured, <4 deg spread) */
+const LEFT_IN_RIGHT = new THREE.Quaternion(-0.1827, -0.0485, 0.0477, 0.9808);
+
+/** the shared procedural handguard, baked with flat vertex colours so it merges into the weapon's single draw call */
+function guardGeometry(z0: number, z1: number, like: THREE.BufferGeometry): THREE.BufferGeometry {
+  const parts = guardParts(z0, z1).map(({ geo, color }) => {
+    const g = like.index ? geo : geo.toNonIndexed(); if (g !== geo) geo.dispose();
+    const n = g.attributes.position!.count, a = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { a[i * 3] = color[0]; a[i * 3 + 1] = color[1]; a[i * 3 + 2] = color[2]; }
+    g.setAttribute('color', new THREE.BufferAttribute(a, 3)); g.deleteAttribute('uv');
+    return g;
+  });
+  const merged = mergeGeometries(parts, false)!;
+  for (const p of parts) p.dispose();
+  return merged;
+}
 
 type ActionSet = { U: THREE.AnimationAction; L: THREE.AnimationAction; clip: THREE.AnimationClip };
 
@@ -117,7 +129,14 @@ export class Soldier {
   private dead = false;
   private dieAction: THREE.AnimationAction | null = null;
   private workAction: ActionSet | null = null;
-  private weaponNode: THREE.Object3D | null = null;
+  weaponNode: THREE.Object3D | null = null;
+  private weaponMesh: THREE.Mesh | null = null;
+  /** support-hand rest point in weapon model space (null = one-handed weapon) */
+  private foreLocal: THREE.Vector3 | null = null;
+  private ikW = 0;                 // smoothed weight of the support-hand IK
+  private reloadStart = -9; private reloadDur = 0; private hitUntil = -9;
+  /** diagnostics for tests / the QA viewer: distance from Socket_Hand_L to the forend point after solving */
+  lastForeError = -1;
   private weaponKey = '';
   private team = -1;
   private assets: SoldierAssets;
@@ -197,16 +216,16 @@ export class Soldier {
     const src = this.assets.weapons.getObjectByName(name);
     const sock = this.bones.get('Socket_Hand_R');
     if (!src || !sock) { this.weaponNode = null; return; }
-    const g = GRIP[name] ?? { yaw: Math.PI / 2, gx: 0, gy: 0.1, gz: -0.1, scale: 1 };
+    const g = HOLDS[name] ?? DEFAULT_HOLD;
     const ww = worldWeapon(src, name);
     if (!weaponMat) weaponMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.58, metalness: 0.35, envMapIntensity: 0.7 });
     const holder = new THREE.Group();
     const w = new THREE.Mesh(ww.geo, weaponMat); w.frustumCulled = false; w.castShadow = this.shadowMode === 'dynamic';
-    w.position.set(-g.gx, -g.gy, -g.gz);
+    w.position.set(-g.grip[0], -g.grip[1], -g.grip[2]);      // the grip point of the model sits on the socket origin ...
     holder.add(w);
-    holder.rotation.y = g.yaw; holder.scale.setScalar(g.scale);
+    holder.quaternion.copy(WEAPON_TO_SOCKET);                // ... and the model is turned into the socket frame (muzzle forward, sights up)
     sock.add(holder);
-    this.weaponNode = holder;
+    this.weaponNode = holder; this.weaponMesh = w; this.foreLocal = g.fore ? new THREE.Vector3(...g.fore) : null;
     // muzzle flash sprite at the barrel tip (model +Z is the muzzle)
     if (!Soldier.flashMat) {
       Soldier.flashMat = new THREE.MeshBasicMaterial({ color: 0xffd48a, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
@@ -214,12 +233,13 @@ export class Soldier {
     }
     this.flashObj = new THREE.Group();
     for (let i = 0; i < 2; i++) { const q = new THREE.Mesh(Soldier.flashGeo!, Soldier.flashMat!); q.rotation.z = i * Math.PI / 4; this.flashObj.add(q); }
-    this.flashObj.position.set(0, Math.min(ww.box.max.y * 0.68, 0.22), ww.box.max.z + 0.07);
+    const streak = new THREE.Mesh(Soldier.flashGeo!, Soldier.flashMat!); streak.rotation.y = Math.PI / 2; streak.position.z = 0.07; streak.scale.set(1.5, 0.55, 1); this.flashObj.add(streak);   // side-on flare along the barrel
+    this.flashObj.position.set(0, name === 'service-pistol' ? 0.136 : 0.236, ww.box.max.z + 0.03);   // on the barrel axis, just past the muzzle
     this.flashObj.visible = false; w.add(this.flashObj);
   }
 
   /** show the muzzle flash for a few frames */
-  flash() { if (this.flashObj && WEAPONS_NOFLASH.indexOf(this.weaponKey.split(':')[0]!) < 0) { this.flashT = 0.055; this.flashObj.visible = true; this.flashObj.rotation.z = Math.random() * 6; } }
+  flash() { if (this.flashObj && WEAPONS_NOFLASH.indexOf(this.weaponKey.split(':')[0]!) < 0) { this.flashT = 0.055; this.flashObj.visible = true; const r = Math.random() * 6; this.flashObj.children[0]!.rotation.z = r; this.flashObj.children[1]!.rotation.z = r + Math.PI / 4; } }
   /** world position of the barrel tip (valid after the last render) */
   muzzleWorld(out: THREE.Vector3): THREE.Vector3 { if (this.flashObj) return this.flashObj.getWorldPosition(out); return this.root.getWorldPosition(out); }
 
@@ -249,6 +269,7 @@ export class Soldier {
           this.dieAction.reset(); this.dieAction.setLoop(THREE.LoopOnce, 1); this.dieAction.clampWhenFinished = true; this.dieAction.setEffectiveWeight(1); this.dieAction.enabled = true; this.dieAction.play();
         }
       }
+      this.ikW = 0; this.lastForeError = -1;
       this.mixer.update(dt);
       return;
     }
@@ -302,8 +323,8 @@ export class Soldier {
       this.overlayTarget = 1; this.overlayUntil = s.time + dur;
     };
     const def = WEAPONS[s.weapon];
-    if (s.hurtAt > this.lastHurt) { this.lastHurt = s.hurtAt; if (s.time - s.hurtAt < 0.3) triggerOverlay('hit', 0.45); }
-    if (s.reloadAt > this.lastReload) { this.lastReload = s.reloadAt; if (s.time - s.reloadAt < 0.3 && def.slot !== 'melee') triggerOverlay(this.pick('reload', s.weapon), Math.min(def.reloadTime, 2.6)); }
+    if (s.hurtAt > this.lastHurt) { this.lastHurt = s.hurtAt; if (s.time - s.hurtAt < 0.3) { triggerOverlay('hit', 0.45); this.hitUntil = s.time + 0.45; } }
+    if (s.reloadAt > this.lastReload) { this.lastReload = s.reloadAt; if (s.time - s.reloadAt < 0.3 && def.slot !== 'melee') { const rd = Math.min(def.reloadTime, 2.6); triggerOverlay(this.pick('reload', s.weapon), rd); this.reloadStart = s.time; this.reloadDur = rd; } }
     if (s.firedAt > this.lastFired) {
       this.lastFired = s.firedAt;
       if (s.time - s.firedAt < 0.3) triggerOverlay(def.slot === 'melee' ? 'melee' : this.pick('fire', s.weapon), def.slot === 'melee' ? 0.5 : 0.28);
@@ -327,8 +348,78 @@ export class Soldier {
     const p = THREE.MathUtils.clamp(this.pitchSm, -1.1, 1.1);
     const spine = this.bones.get('Spine'), chest = this.bones.get('Chest');
     // bones rotate about their local X; negative pitch = look down. 40 % spine / 60 % chest.
+    // The upper-body overlays are cut from clips whose hips were twisted toward the aim; without those hips the torso (and the gun) ends up
+    // up to ~45 degrees off the facing direction. Measure where the barrel really points and untwist the spine so it points where the player looks.
+    const aimed = (def.gripSet !== 'blade') && !working;
+    this.aimK += ((aimed ? 1 : 0) - this.aimK) * (1 - Math.exp(-dt / 0.08));
+    if (this.aimK > 0.01) this.untwistToAim(this.aimK);
     if (spine) spine.rotateX(-p * 0.4);
     if (chest) chest.rotateX(-p * 0.6);
+
+    // ---- support hand: put the left palm on the weapon's forend (two-bone IK after the pose + pitch are final) ----
+    let ikTarget = this.foreLocal && this.weaponMesh && !working && s.using === 'none' ? 1 : 0;
+    if (ikTarget && this.reloadDur > 0 && s.time - this.reloadStart < this.reloadDur) {
+      // the reload clip takes the left hand to the magazine in the middle and back to the forend at both ends
+      const pr = (s.time - this.reloadStart) / this.reloadDur;
+      const sm = (a: number, b: number, x: number) => { const t = THREE.MathUtils.clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+      ikTarget = THREE.MathUtils.clamp(1 - sm(0.08, 0.25, pr) + sm(0.72, 0.92, pr), 0, 1);
+    } else if (ikTarget && s.time < this.hitUntil) ikTarget = 0.5;
+    this.ikW += (ikTarget - this.ikW) * (1 - Math.exp(-dt / 0.06));
+    this.solveSupportHand();
+  }
+
+  private aimK = 0;
+  private static dirW = new THREE.Vector3();
+  private static axisW = new THREE.Vector3(0, 1, 0);
+  private static qRoot = new THREE.Quaternion();
+  private static qPar = new THREE.Quaternion();
+  private static qRot = new THREE.Quaternion();
+  /** twist `bone` about the root's vertical axis by `ang` (radians), in world space */
+  private twistAboutUp(bone: THREE.Object3D, ang: number) {
+    bone.parent!.updateWorldMatrix(true, false);
+    bone.parent!.getWorldQuaternion(Soldier.qPar);
+    Soldier.qRot.setFromAxisAngle(Soldier.axisW, ang);
+    // local' = parent^-1 * rot * parent * local
+    bone.quaternion.premultiply(Soldier.qPar).premultiply(Soldier.qRot).premultiply(Soldier.qPar.invert());
+  }
+  private untwistToAim(k: number) {
+    const sockR = this.bones.get('Socket_Hand_R'), spine = this.bones.get('Spine'), chest = this.bones.get('Chest');
+    if (!sockR || !spine || !chest) return;
+    sockR.updateWorldMatrix(true, false);
+    const d = Soldier.dirW.set(1, 0, 0).transformDirection(sockR.matrixWorld);           // barrel direction, world
+    this.root.getWorldQuaternion(Soldier.qRoot); d.applyQuaternion(Soldier.qRoot.invert());  // ... in the soldier's own frame (+Z forward, +X his left)
+    const h = Math.hypot(d.x, d.z);
+    if (h < 0.25) return;                                                                 // barrel (near) vertical: yaw undefined
+    const yawErr = Math.atan2(d.x, d.z);
+    const ang = -THREE.MathUtils.clamp(yawErr, -1.2, 1.2) * k * THREE.MathUtils.smoothstep(h, 0.25, 0.5);
+    Soldier.axisW.set(0, 1, 0).applyQuaternion(Soldier.qRoot.invert());                  // root's up in world (qRoot was inverted above)
+    this.twistAboutUp(spine, ang * 0.4);
+    this.twistAboutUp(chest, ang * 0.6);
+  }
+
+  private static foreWorld = new THREE.Vector3();
+  private static qA = new THREE.Quaternion();
+  private static qB = new THREE.Quaternion();
+  private static qC = new THREE.Quaternion();
+  private solveSupportHand() {
+    const up = this.bones.get('UpperArm_L'), lo = this.bones.get('LowerArm_L'), hd = this.bones.get('Hand_L'), tip = this.bones.get('Socket_Hand_L'), sockR = this.bones.get('Socket_Hand_R');
+    if (!up || !lo || !hd || !tip || !sockR || !this.foreLocal || !this.weaponMesh || this.ikW < 0.01) { this.lastForeError = -1; return; }
+    this.weaponMesh.updateWorldMatrix(true, false);
+    Soldier.foreWorld.copy(this.foreLocal).applyMatrix4(this.weaponMesh.matrixWorld);
+    // Orienting the palm moves the socket (it sits 4 cm from the wrist bone) and reaching moves the palm's orientation, so alternate twice.
+    for (let pass = 0; pass < 2; pass++) {
+      this.lastForeError = solveTwoBone(up, lo, hd, tip, Soldier.foreWorld, this.ikW);
+      // palm orientation: keep the animators' relative pose to the firing hand, so the palm cups the handguard instead of inheriting the forearm's twist
+      const qWant = Soldier.qA, qNow = Soldier.qB, qTmp = Soldier.qC;
+      sockR.getWorldQuaternion(qWant).multiply(LEFT_IN_RIGHT);                // desired Socket_Hand_L world rotation
+      qWant.multiply(qTmp.copy(tip.quaternion).invert());                     // -> desired Hand_L world rotation (socket is a child of the hand)
+      hd.updateWorldMatrix(true, false); hd.getWorldQuaternion(qNow);         // current Hand_L world rotation
+      qNow.slerp(qWant, this.ikW);
+      hd.parent!.getWorldQuaternion(qTmp).invert();
+      hd.quaternion.copy(qTmp).multiply(qNow);
+      hd.updateWorldMatrix(false, true);
+    }
+    tip.getWorldPosition(Soldier.dirW); this.lastForeError = Soldier.dirW.distanceTo(Soldier.foreWorld);
   }
 
   dispose() { this.mixer.stopAllAction(); this.mixer.uncacheRoot(this.root); }

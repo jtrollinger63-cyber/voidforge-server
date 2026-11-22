@@ -48,7 +48,7 @@ Controls (rebindable): `WASD` move · mouse look/fire · `Space` jump · `C`/`Ct
 | Single-file release | 2.40 MB; opens from `file://` with **all network blocked** and plays (`tools/releasetest.cjs`); gate script proven to fail when over budget |
 
 ### Needs something from you
-1. **The CuiGames first-person weapons were NOT obtained.** Downloading them from itch.io was blocked by the sandbox permission system, so the first-person gun is a **provisional procedural viewmodel** (CC0 world models + animated arms). Download `A5_Base.zip` and `P50_Heavy_Pistol_Free.zip` yourself (links and licence notes in [assets/inbox/README.md](assets/inbox/README.md)) and run `npm run assets:import`. The importer inspects and optimises; **wiring a CuiGames GLB into the viewmodel is not done and untested** (it needs the real files).
+1. **The CuiGames first-person weapons were NOT obtained.** Downloading them from itch.io was blocked by the sandbox permission system, so the first-person gun is a **provisional procedural viewmodel** (CC0 world models + procedurally posed gloved hands placed on measured grip/forend points). Download `A5_Base.zip` and `P50_Heavy_Pistol_Free.zip` yourself (links and licence notes in [assets/inbox/README.md](assets/inbox/README.md)) and run `npm run assets:import`. The importer inspects and optimises; **wiring a CuiGames GLB into the viewmodel is not done and untested** (it needs the real files).
 2. **The server is not deployed publicly.** It runs locally and the tests pass; for internet play host `npm run server` behind TLS (see [docs/NETWORK.md](docs/NETWORK.md) and `render.yaml`) and bake the `wss://` address into the release with `--server`.
 
 ### Not verified (be sceptical of these)
@@ -80,7 +80,7 @@ src/engine     renderer, sky, quality presets, input, settings, effects
 src/map        hillfront.ts (grid → placements + colliders), world.ts (collision), mapview.ts (chunked static meshes)
 src/gameplay   sim.ts (authoritative rules, pure TS), movement.ts, weapons.ts, bots.ts, nav.ts, view.ts
 src/character  soldier.ts (rig + upper/lower-body animation), atlas.ts, materials.ts
-src/weapons    viewmodel.ts (PROVISIONAL first-person weapon)
+src/weapons    viewmodel.ts (PROVISIONAL first-person weapon), holds.ts (grip/forend points shared by 1st + 3rd person)
 src/network    protocol.ts (shared), client.ts
 src/game       game.ts (presentation + loop), session.ts (LocalSession / NetSession with prediction)
 src/ui         hud, screens (buy/scoreboard/pause/settings/results), menu, online (party UI)
